@@ -17,9 +17,11 @@ import folium
 from folium.plugins import HeatMap
 from streamlit_folium import st_folium
 
+from datetime import datetime
 from utils.regional_data import NE_STATES, NE_HOTSPOTS, SDMA_CONTACTS
 from utils.weather_service import fetch_openmeteo_weather
 from utils.model_service import calculate_landslide_risk, load_assets
+from utils.pdf_generator import generate_landslide_pdf_report
 
 # -----------------------------------------------------------------------------
 # PAGE CONFIGURATION
@@ -129,6 +131,26 @@ st.markdown("""
     .dot-low { background-color: #10B981; box-shadow: 0 0 8px #10B981; }
     .dot-medium { background-color: #F59E0B; box-shadow: 0 0 8px #F59E0B; }
     .dot-high { background-color: #EF4444; box-shadow: 0 0 10px #EF4444; }
+
+    /* Download Report Button Styling */
+    .stDownloadButton button {
+        background: rgba(128, 128, 128, 0.08) !important;
+        border: 1px solid rgba(128, 128, 128, 0.25) !important;
+        color: var(--text-color, #F8FAFC) !important;
+        font-weight: 600 !important;
+        font-size: 0.82rem !important;
+        letter-spacing: 0.02em !important;
+        border-radius: 8px !important;
+        padding: 0.42rem 0.9rem !important;
+        transition: all 0.2s ease-in-out !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+    }
+    .stDownloadButton button:hover {
+        background: rgba(2, 132, 199, 0.15) !important;
+        border-color: #0284C7 !important;
+        color: #0284C7 !important;
+        transform: translateY(-1px) !important;
+    }
 
     /* Section Headings */
     .section-title {
@@ -255,9 +277,9 @@ else:
     weather_res = fallback_weather
 
 # -----------------------------------------------------------------------------
-# MAIN HEADER & STATUS BADGE
+# MAIN HEADER, STATUS BADGE & EXPORT BUTTON
 # -----------------------------------------------------------------------------
-col_h1, col_h2 = st.columns([3, 1])
+col_h1, col_h2, col_h3 = st.columns([5, 2.8, 2.2])
 
 classification_str = risk_output['classification'].lower()
 status_class = f"status-{classification_str}"
@@ -276,15 +298,41 @@ with col_h1:
 
 with col_h2:
     st.markdown(f"""
-    <div style="text-align: right; padding-top: 0.3rem;">
+    <div style="text-align: right; padding-top: 0.25rem;">
         <div class="status-pill {status_class}">
             <span class="status-dot {dot_class}"></span> {risk_output['classification'].upper()} RISK
         </div>
-        <div style="font-size: 0.8rem; color: #94A3B8; margin-top: 0.35rem; font-weight: 500;">
+        <div style="font-size: 0.78rem; color: #94A3B8; margin-top: 0.35rem; font-weight: 500;">
             {risk_output['alert_level']}
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+with col_h3:
+    sdma_contact = SDMA_CONTACTS.get(target_state, SDMA_CONTACTS["Sikkim"])
+    pdf_bytes = generate_landslide_pdf_report(
+        location_title=location_title,
+        target_state=target_state,
+        target_lat=target_lat,
+        target_lon=target_lon,
+        terrain_profile=terrain_profile,
+        target_geology=target_geology,
+        target_notes=target_notes,
+        risk_output=risk_output,
+        weather_res=weather_res,
+        sdma_contact=sdma_contact
+    )
+    safe_name = "".join(c for c in location_title if c.isalnum() or c in (' ', '_', '-')).rstrip().replace(" ", "_")
+    report_filename = f"Hazard_Report_{safe_name}_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+    
+    st.markdown("<div style='padding-top: 0.35rem;'></div>", unsafe_allow_html=True)
+    st.download_button(
+        label="Export Report as PDF",
+        data=pdf_bytes,
+        file_name=report_filename,
+        mime="application/pdf",
+        use_container_width=True
+    )
 
 # Clean Alert Callout
 if risk_output['classification'] == "High":
