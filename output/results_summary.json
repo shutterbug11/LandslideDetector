@@ -1,0 +1,48 @@
+{
+  "project": "Sikkim Landslide Prediction",
+  "timestamp": "2026-09-03T19:51:37.723884",
+  "dataset": {
+    "total_rows": 4000000,
+    "subsample_size": 250000,
+    "features": 34,
+    "positive_class_ratio": 0.226764
+  },
+  "best_model": "LightGBM (Tuned)",
+  "best_params": {
+    "n_estimators": 471,
+    "max_depth": 15,
+    "learning_rate": 0.2589898910477058,
+    "num_leaves": 150,
+    "subsample": 0.7874820875551369,
+    "colsample_bytree": 0.9487283159585305,
+    "min_child_samples": 25,
+    "reg_alpha": 0.0020781973056227185,
+    "reg_lambda": 0.008036141722925789
+  },
+  "test_metrics": {
+    "Accuracy": 0.94376,
+    "Precision": 0.8626516955880685,
+    "Recall": 0.8944026340545626,
+    "F1-Score": 0.8782402863576007,
+    "ROC-AUC": 0.9835004815274745,
+    "PR-AUC": 0.9431384222062331
+  },
+  "top_features": {
+    "aspect": 5395,
+    "elevation": 4411,
+    "GLCMMean": 3929,
+    "mNDWI": 3738,
+    "profile_curvature": 3129,
+    "plan_curvature": 3111,
+    "EVI": 3053,
+    "GLCMCorrelation": 2788,
+    "NDTI": 2426,
+    "ARVI": 2397
+  },
+  "generalization": {
+    "train_f1": 1.0,
+    "val_f1": 0.8748189770028384,
+    "test_f1": 0.8782402863576007,
+    "train_test_gap": 0.12175971364239935
+  }
+}

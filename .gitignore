@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Large Raw Datasets and Rasters (Over GitHub 100MB Limit)
+Sikkim/
+*.csv
+*.tif
+*.jp2
+*.zip
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.env
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
+
+# Cache directories & DBs
+.cache/
+*.cache
+*.sqlite
+.pytest_cache/
+
+# OS generated files
+.DS_Store
+Thumbs.db
