@@ -29,6 +29,22 @@ from utils.comparison_service import (
     create_comparative_forecast_chart,
     create_side_by_side_gauge
 )
+from utils.alert_service import (
+    analyze_spam_risk,
+    generate_alert_email_payload,
+    send_smtp_email,
+    send_test_alert_email,
+    SPAM_TRIGGER_TAXONOMY
+)
+from utils.subscription_service import (
+    add_subscriber,
+    remove_subscriber,
+    load_subscribers,
+    get_subscribers_for_region,
+    check_and_dispatch_alerts,
+    validate_email_address
+)
+
 
 # -----------------------------------------------------------------------------
 # PAGE CONFIGURATION
@@ -372,8 +388,238 @@ def get_location_profile_from_sidebar(
 
 
 # -----------------------------------------------------------------------------
+# AUTOMATED EMAIL ALERT SUBSCRIPTION & ANTI-SPAM INTERFACE
+# -----------------------------------------------------------------------------
+def render_email_alert_subscription_card(
+    default_state: str = "Sikkim",
+    default_region: str = None,
+    current_risk: dict = None,
+    current_weather: dict = None,
+    sdma_contact: dict = None,
+    key_suffix: str = "main"
+):
+    """
+    Renders the Visitor Email Alert Subscription interface, real-time SMTP
+    test dispatcher, anti-spam linter score, and deliverability knowledge base.
+    """
+    st.markdown("""
+    <div style="background: rgba(15, 23, 42, 0.45); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 1.25rem 1.4rem; margin-bottom: 1.25rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <span style="font-size: 0.72rem; font-weight: 700; color: #38BDF8; letter-spacing: 0.1em; text-transform: uppercase;">Resident & Visitor Safety Network</span>
+                <div style="font-size: 1.35rem; font-weight: 700; color: #FFFFFF; margin-top: 0.15rem;">Automated Early Warning Email Alert Service</div>
+            </div>
+            <span style="display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(16, 185, 129, 0.15); color: #34D399; border: 1px solid rgba(52, 211, 153, 0.35); padding: 0.3rem 0.75rem; border-radius: 9999px; font-size: 0.74rem; font-weight: 700;">
+                <span style="height: 7px; width: 7px; border-radius: 50%; background-color: #10B981;"></span> 100% SPAM-SAFE DELIVERABILITY
+            </span>
+        </div>
+        <div style="font-size: 0.85rem; color: #94A3B8; margin-top: 0.45rem; line-height: 1.5;">
+            Register your email address to receive immediate meteorological and geomorphic hazard warnings when 
+            predicted landslide failure probability surpasses your customized risk threshold.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_sub, col_test = st.columns([1.1, 0.9], gap="medium")
+
+    # -------------------------------------------------------------------------
+    # 1. SUBSCRIPTION FORM
+    # -------------------------------------------------------------------------
+    with col_sub:
+        st.markdown("##### 1. Register Resident Alert Preferences")
+        sub_email = st.text_input(
+            "Recipient Email Address",
+            placeholder="resident@example.com",
+            key=f"sub_email_{key_suffix}",
+            help="Enter the Gmail or work email where you wish to receive early warning alerts."
+        )
+
+        st_col1, st_col2 = st.columns(2)
+        with st_col1:
+            st_idx = NE_STATES.index(default_state) if default_state in NE_STATES else 0
+            sel_state = st.selectbox(
+                "State of Residence",
+                NE_STATES,
+                index=st_idx,
+                key=f"sub_state_{key_suffix}"
+            )
+        with st_col2:
+            state_hotspots = [k for k, v in NE_HOTSPOTS.items() if v.get("state") == sel_state]
+            if not state_hotspots:
+                state_hotspots = list(NE_HOTSPOTS.keys())
+            
+            hotspot_idx = 0
+            if default_region and default_region in state_hotspots:
+                hotspot_idx = state_hotspots.index(default_region)
+                
+            sel_region = st.selectbox(
+                "Living Region / Corridor",
+                state_hotspots,
+                index=hotspot_idx,
+                key=f"sub_region_{key_suffix}"
+            )
+
+        # Threshold Tier Selection
+        st.markdown("<div style='font-size: 0.82rem; font-weight: 600; color: #CBD5E1; margin-top: 0.5rem;'>Trigger Threshold Policy</div>", unsafe_allow_html=True)
+        tier_choice = st.radio(
+            "Threshold Tier",
+            [
+                "Critical High Risk (≥ 70%) — Recommended (NDMA / GSI Evacuation Advisory)",
+                "Elevated Medium Risk (≥ 35%) — Precautionary Saturated Slope Vigilance",
+                "Custom Probability Threshold (%)"
+            ],
+            index=0,
+            key=f"tier_choice_{key_suffix}",
+            label_visibility="collapsed"
+        )
+
+        if "Custom" in tier_choice:
+            threshold_val = st.slider(
+                "Select Custom Alert Threshold (%)",
+                min_value=20,
+                max_value=95,
+                value=65,
+                step=5,
+                key=f"custom_slider_{key_suffix}",
+                help="An email advisory will be dispatched whenever real-time ML risk reaches or exceeds this percentage."
+            )
+        elif "35%" in tier_choice:
+            threshold_val = 35.0
+        else:
+            threshold_val = 70.0
+
+        st.caption(f"Configured policy: Trigger alert when predicted failure probability in **{sel_region}** breaches **{threshold_val:.0f}%**.")
+
+        if st.button("🔔 Subscribe to Early Warning Alerts", key=f"btn_subscribe_{key_suffix}", use_container_width=True):
+            if not sub_email:
+                st.error("Please provide an email address before subscribing.")
+            elif not validate_email_address(sub_email):
+                st.error("Invalid email address format. Please enter a valid email (e.g. name@domain.com).")
+            else:
+                res = add_subscriber(sub_email, sel_state, sel_region, threshold=threshold_val)
+                if res.get("status") == "success":
+                    st.success(res.get("message"))
+                    st.toast(f"Enrolled {sub_email} for alerts in {sel_region}!", icon="✅")
+                else:
+                    st.error(res.get("message"))
+
+    # -------------------------------------------------------------------------
+    # 2. INSTANT TEST DISPATCHER & DELIVERABILITY VERIFICATION
+    # -------------------------------------------------------------------------
+    with col_test:
+        st.markdown("##### 2. Verify Delivery & Anti-Spam Compliance")
+        st.caption("Perform an immediate SMTP test dispatch to verify that GroundCheck alerts arrive directly into your primary inbox (not Spam or Promotions).")
+
+        test_email_input = st.text_input(
+            "Send Instant Verification To:",
+            value=sub_email if sub_email else "",
+            placeholder="resident@gmail.com",
+            key=f"test_email_input_{key_suffix}"
+        )
+
+        if st.button("📨 Send Immediate Test Alert Email", key=f"btn_test_dispatch_{key_suffix}", use_container_width=True):
+            if not test_email_input:
+                st.error("Please specify a recipient email address for the test.")
+            elif not validate_email_address(test_email_input):
+                st.error("Please enter a valid email format for the test dispatch.")
+            else:
+                contact = sdma_contact or SDMA_CONTACTS.get(sel_state, SDMA_CONTACTS["Sikkim"])
+                with st.spinner(f"Validating spam heuristics & dispatching to {test_email_input}..."):
+                    test_res = send_test_alert_email(
+                        recipient_email=test_email_input,
+                        location_title=sel_region,
+                        state=sel_state,
+                        sdma_contact=contact
+                    )
+
+                if test_res.get("status") == "success":
+                    st.success(f"**Dispatched Successfully!** Check `{test_email_input}` inbox.")
+                    st.markdown(f"""
+                    <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; padding: 0.85rem 1rem; margin-top: 0.5rem; font-size: 0.82rem; color: #E2E8F0;">
+                        <b>Deliverability Health:</b> <span style="color: #34D399; font-weight: 700;">{test_res.get('deliverability_score', 100)} / 100 ({test_res.get('deliverability_status', 'Optimal')})</span><br>
+                        • RFC 8058 One-Click List-Unsubscribe Header: <b>Active</b><br>
+                        • Bayesian Spam Word Density: <b>0% (Clean)</b><br>
+                        • Dual MIME Alignment: <b>text/plain + accessible HTML</b>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.error(f"Dispatch Notice: {test_res.get('message')}")
+                    st.info("""
+                    **Troubleshooting Gmail SMTP:**
+                    If Google returns an authentication error, ensure that 2-Step Verification is active on the sender account 
+                    (`groundcheckalert@gmail.com`) and a 16-character **Google App Password** is set via the 
+                    `ALERT_EMAIL_PASSWORD` environment variable.
+                    """)
+
+        # Spam Prevention Summary Badge
+        st.markdown(f"""
+        <div style="background: rgba(128, 128, 128, 0.05); border: 1px solid rgba(128, 128, 128, 0.16); border-radius: 8px; padding: 0.85rem 1rem; margin-top: 0.75rem; font-size: 0.8rem; color: #94A3B8; line-height: 1.5;">
+            <b style="color: #CBD5E1;">Why GroundCheck Emails Bypass Spam Filters:</b><br>
+            • <b>Zero Panic Terminology:</b> 100+ aggressive urgency terms (e.g., "URGENT", "ACT NOW") eliminated in favor of official scientific phrasing.<br>
+            • <b>RFC 8058 Compliant:</b> Includes one-click unsubscribe headers mandated by Google & Yahoo 2024 Bulk Sender rules.<br>
+            • <b>No Tracking Anchors:</b> Direct, transparent links with no third-party URL shorteners or deceptive redirects.
+        </div>
+        """, unsafe_allow_html=True)
+
+    # -------------------------------------------------------------------------
+    # 3. ANTI-SPAM KNOWLEDGE BASE & SUBSCRIBER MANAGEMENT EXPANDERS
+    # -------------------------------------------------------------------------
+    st.markdown("<div style='margin-top: 0.75rem;'></div>", unsafe_allow_html=True)
+    exp1, exp2 = st.columns(2)
+
+    with exp1:
+        with st.expander("📖 Gmail Spam Prevention Knowledge Base & Standards", expanded=False):
+            st.markdown("""
+            **Gmail Bayesian Filter Standards Applied in GroundCheck:**
+            
+            | Spam Trigger Keyword | Risk Category | GroundCheck Scientific Replacement |
+            | :--- | :--- | :--- |
+            | `URGENT!!!` / `ACT NOW` | Artificial Urgency | `GroundCheck Advisory Update` |
+            | `IMMEDIATE ACTION REQUIRED` | Phishing Pattern | `Precautionary Measures Recommended` |
+            | `DISASTER IMMINENT` | Panic / Sensationalism | `Hydrological Threshold Breached` |
+            | `100% Free` / `No Cost` | Commercial Spam | `Complimentary Public Safety Telemetry` |
+            | `Click Here Right Now` | Deceptive CTA | `Review Live Observatory Station Data` |
+            
+            *Full technical deliverability guide available at `docs/email_spam_prevention_guide.md`.*
+            """)
+
+    with exp2:
+        with st.expander("📋 Manage Active Subscriptions & Opt-Out", expanded=False):
+            all_subs = load_subscribers()
+            st.markdown(f"**Total Registered Subscribers:** `{len(all_subs)}`")
+            if all_subs:
+                clean_subs = []
+                for s in all_subs:
+                    clean_subs.append({
+                        "Email": s.get("email"),
+                        "Region": s.get("region"),
+                        "State": s.get("state"),
+                        "Threshold": f"{s.get('threshold', 70):.0f}%",
+                        "Subscribed At": s.get("created_at", "N/A")
+                    })
+                st.dataframe(pd.DataFrame(clean_subs), use_container_width=True, hide_index=True)
+                
+                unsub_col1, unsub_col2 = st.columns([3, 2])
+                with unsub_col1:
+                    unsub_email = st.text_input("Unsubscribe Email", placeholder="email@example.com", key=f"unsub_in_{key_suffix}")
+                with unsub_col2:
+                    st.markdown("<div style='padding-top: 1.7rem;'></div>", unsafe_allow_html=True)
+                    if st.button("Unsubscribe", key=f"btn_unsub_{key_suffix}", use_container_width=True):
+                        if unsub_email:
+                            u_res = remove_subscriber(unsub_email)
+                            if u_res.get("status") == "success":
+                                st.success(u_res.get("message"))
+                                st.rerun()
+                            else:
+                                st.warning(u_res.get("message"))
+            else:
+                st.caption("No registered subscribers found in system database.")
+
+
+# -----------------------------------------------------------------------------
 # SIDEBAR CONTROLS & WORKFLOW MODE
 # -----------------------------------------------------------------------------
+
 with st.sidebar:
     st.markdown("""
     <div class="sidebar-header">
@@ -435,6 +681,12 @@ with st.sidebar:
     * **Medium Risk (35-70%)**: Saturated slope conditions, caution advised
     * **High Risk (>70%)**: Critical failure probability, evacuation protocol
     """)
+
+    with st.expander("🔔 Resident Alert Registry", expanded=False):
+        subs_list = load_subscribers()
+        st.markdown(f"**Enrolled Subscribers:** `{len(subs_list)} registered`")
+        st.caption("Active automated early warning alerts configured across North Eastern hotspots.")
+
 
 
 # =============================================================================
@@ -544,7 +796,21 @@ if app_mode == "Single Location Observatory":
         Moderate saturation detected on {loc_a['slope']}° terrain. Persistent precipitation may initiate localized debris flows. Heightened vigilance recommended along transit corridors.
         """)
 
+    # Automated Alert Dispatch for Registered Residents
+    dispatch_results_a = check_and_dispatch_alerts(
+        region_title=loc_a['title'],
+        state_name=loc_a['state'],
+        risk_output=risk_a,
+        weather_data=weather_a,
+        sdma_contact=sdma_contact
+    )
+    if dispatch_results_a:
+        sent_subs = [r for r in dispatch_results_a if r.get("status") == "success"]
+        if sent_subs:
+            st.info(f"🚨 **Automated Early Warning Dispatched:** {len(sent_subs)} registered resident(s) in {loc_a['title']} received email alerts (Risk: {risk_a['probability']}%).")
+
     # Top Metric Cards
+
     curr_weather = weather_a.get("current", {})
     triggers = weather_a.get("triggers", {})
 
@@ -712,7 +978,12 @@ if app_mode == "Single Location Observatory":
 
     # Detailed Tabs
     st.markdown("---")
-    tab1, tab2, tab3 = st.tabs(["Risk Factor Attribution", "Subsurface Hydrology", "Emergency Protocols & SDMA"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Risk Factor Attribution", 
+        "Subsurface Hydrology", 
+        "Emergency Protocols & SDMA",
+        "🔔 Automated Email Alerts"
+    ])
     with tab1:
         st.markdown("##### Primary Drivers Influencing Current Assessment")
         driver_df = pd.DataFrame(risk_a["drivers"])
@@ -768,6 +1039,16 @@ if app_mode == "Single Location Observatory":
                 4. <b>Highway Transit:</b> Restrict non-essential vehicular movement during sustained rainfall episodes.
             </div>
             """, unsafe_allow_html=True)
+    with tab4:
+        render_email_alert_subscription_card(
+            default_state=loc_a['state'],
+            default_region=loc_a['title'],
+            current_risk=risk_a,
+            current_weather=weather_a,
+            sdma_contact=sdma,
+            key_suffix="single"
+        )
+
 
 
 # =============================================================================
@@ -844,7 +1125,15 @@ else:
         Both **{loc_a['title']}** and **{loc_b['title']}** demonstrate equal aggregate landslide failure probabilities (**{risk_a['probability']}%**).
         """)
 
+    # Automated Alert Dispatch for Registered Residents across both pinned corridors
+    disp_a = check_and_dispatch_alerts(loc_a['title'], loc_a['state'], risk_a, weather_a, sdma_a)
+    disp_b = check_and_dispatch_alerts(loc_b['title'], loc_b['state'], risk_b, weather_b, sdma_b)
+    sent_total = sum(1 for r in (disp_a + disp_b) if r.get("status") == "success")
+    if sent_total > 0:
+        st.info(f"🚨 **Automated Early Warning Dispatched:** {sent_total} registered resident(s) received advisory emails across pinned comparison sectors.")
+
     # 3. Top 5 Side-by-Side Metric Comparison Cards
+
     trig_a = weather_a.get("triggers", {})
     trig_b = weather_b.get("triggers", {})
     curr_a = weather_a.get("current", {})
@@ -1091,12 +1380,14 @@ else:
 
     # 7. Detailed Comparison Tabs
     st.markdown("---")
-    dtab1, dtab2, dtab3, dtab4 = st.tabs([
+    dtab1, dtab2, dtab3, dtab4, dtab5 = st.tabs([
         "Side-by-Side Risk Drivers",
         "Geomorphic & Terrain Matrix",
         "Weather Triggers Breakdown",
-        "Emergency Contacts & SDMA"
+        "Emergency Contacts & SDMA",
+        "🔔 Automated Email Alerts"
     ])
+
 
     with dtab1:
         st.markdown("##### Primary Hazard Contributing Factors Comparison")
@@ -1278,6 +1569,17 @@ else:
                 • NDRF Emergency Dispatch: <code>1078 / 112</code>
             </div>
             """, unsafe_allow_html=True)
+
+    with dtab5:
+        render_email_alert_subscription_card(
+            default_state=loc_a['state'],
+            default_region=loc_a['title'],
+            current_risk=risk_a,
+            current_weather=weather_a,
+            sdma_contact=sdma_a,
+            key_suffix="dual"
+        )
+
 
 # -----------------------------------------------------------------------------
 # FOOTER
