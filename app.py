@@ -15,6 +15,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import folium
 from folium.plugins import HeatMap
+import streamlit.components.v1 as components
 from streamlit_folium import st_folium
 
 from datetime import datetime
@@ -57,6 +58,24 @@ try:
     HAS_GEOLOCATION = True
 except ImportError:
     HAS_GEOLOCATION = False
+
+
+def render_folium_map(folium_map, height: int = 420):
+    """
+    Renders a Folium map robustly using Streamlit's native HTML iframe container.
+    This avoids custom React component asset loading failures and proxy timeout
+    errors common with st_folium on Streamlit Community Cloud deployments while
+    preserving all interactive features (HeatMap, popups, layer control, zoom/pan).
+    """
+    try:
+        map_html = folium_map.get_root().render()
+        components.html(map_html, height=height)
+    except Exception:
+        try:
+            from streamlit_folium import folium_static
+            folium_static(folium_map, height=height)
+        except Exception:
+            st_folium(folium_map, width="100%", height=height, returned_objects=[])
 
 
 # -----------------------------------------------------------------------------
@@ -993,7 +1012,7 @@ if app_mode == "Single Location Observatory":
             citizen_fg.add_to(m)
 
         folium.LayerControl(position="topright").add_to(m)
-        st_folium(m, width="100%", height=400)
+        render_folium_map(m, height=420)
 
         st.markdown(f"""
         <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.45rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
@@ -1588,7 +1607,7 @@ else:
             citizen_fg_dual.add_to(m_dual)
 
         folium.LayerControl(position="topright").add_to(m_dual)
-        st_folium(m_dual, width="100%", height=400, key="st_folium_dual")
+        render_folium_map(m_dual, height=420)
 
         st.markdown(f"""
         <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.4rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
