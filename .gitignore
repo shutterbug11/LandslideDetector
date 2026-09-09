@@ -23,6 +23,8 @@ ENV/
 .cache/
 *.cache
 *.sqlite
+*.db
+output/report_photos/
 .pytest_cache/
 
 # OS generated files

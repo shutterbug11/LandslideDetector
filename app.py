@@ -45,6 +45,18 @@ from utils.subscription_service import (
     check_and_dispatch_alerts,
     validate_email_address
 )
+from utils.citizen_reporting_service import (
+    init_reporting_database,
+    save_citizen_report,
+    get_all_citizen_reports,
+    get_photo_data_uri,
+    get_severity_badge_color
+)
+try:
+    from streamlit_geolocation import streamlit_geolocation
+    HAS_GEOLOCATION = True
+except ImportError:
+    HAS_GEOLOCATION = False
 
 
 # -----------------------------------------------------------------------------
@@ -862,13 +874,15 @@ if app_mode == "Single Location Observatory":
     col_map, col_gauge = st.columns([3, 2])
     with col_map:
         st.markdown("<div class='section-title'>Regional Hazard & Susceptibility Map</div>", unsafe_allow_html=True)
-        m_ctrl1, m_ctrl2, m_ctrl3 = st.columns([3, 2, 2])
+        m_ctrl1, m_ctrl2, m_ctrl3, m_ctrl4 = st.columns([2.8, 1.8, 2.0, 2.0])
         with m_ctrl1:
-            show_heatmap = st.checkbox("🔥 Predicted Risk Heatmap", value=True, help="Continuous spatial heatmap weighted by ML predicted failure probabilities across the hotspot grid")
+            show_heatmap = st.checkbox("🔥 Risk Heatmap", value=True, help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
         with m_ctrl2:
-            show_markers = st.checkbox("Hotspot Pins", value=True, help="Toggle clickable district hotspot pins with real-time risk scores")
+            show_markers = st.checkbox("Hotspot Pins", value=True, help="District hotspot markers with model risk scores")
         with m_ctrl3:
-            heatmap_radius = st.slider("Heatmap Blur Radius", min_value=14, max_value=42, value=24, step=2)
+            show_citizen_reports = st.checkbox("📸 Field Reports", value=True, help="Toggle community & ground crew geo-tagged incident pins with photos")
+        with m_ctrl4:
+            heatmap_radius = st.slider("Blur Radius", min_value=14, max_value=42, value=24, step=2)
 
         m = folium.Map(location=[26.1, 92.9], zoom_start=7, tiles="CartoDB positron", control_scale=True)
         folium.TileLayer(tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attr='Esri', name='Satellite High-Resolution', overlay=False, control=True).add_to(m)
@@ -944,16 +958,51 @@ if app_mode == "Single Location Observatory":
             color="#38BDF8", fill=True, fill_color="#38BDF8", fill_opacity=0.40, weight=3
         ).add_to(m)
 
+        # 5. Overlay Citizen & Field Geo-Tagged Reports with Photo Popups
+        citizen_reports = get_all_citizen_reports()
+        if show_citizen_reports and citizen_reports:
+            citizen_fg = folium.FeatureGroup(name="📸 Citizen Field Reports (Geo-Tagged)", show=True)
+            for cr in citizen_reports:
+                mcolor = get_severity_badge_color(cr["severity"])
+                photo_uri = get_photo_data_uri(cr["photo_filename"])
+                img_tag = f"<img src='{photo_uri}' style='width: 100%; max-height: 140px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;' />" if photo_uri else ""
+                popup_html = f"""
+                <div style='font-family: sans-serif; font-size: 12px; line-height: 1.45; min-width: 220px; max-width: 260px;'>
+                    {img_tag}
+                    <div style='font-size: 11px; color: #64748B; margin-bottom: 2px;'>{cr['timestamp']}</div>
+                    <b style='font-size: 13px; color: #0F172A;'>{cr['location_name']}</b><br>
+                    <span style='color: #64748B;'>{cr['state']}</span>
+                    <div style='margin: 6px 0; padding: 4px 8px; border-radius: 4px; background: {mcolor}18; border-left: 3px solid {mcolor};'>
+                        <b style='color: {mcolor};'>{cr['severity'].upper()}</b> &bull; {cr['hazard_type']}
+                    </div>
+                    <div style='font-size: 11px; color: #334155; margin-bottom: 6px;'>
+                        {cr['description']}
+                    </div>
+                    <div style='font-size: 10px; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 4px;'>
+                        Reported by: <b>{cr['reporter_name']}</b><br>
+                        GPS: {cr['latitude']:.4f}°N, {cr['longitude']:.4f}°E
+                    </div>
+                </div>
+                """
+                folium.Marker(
+                    location=[cr["latitude"], cr["longitude"]],
+                    popup=folium.Popup(popup_html, max_width=280),
+                    tooltip=f"📸 Field Report: {cr['location_name']} ({cr['severity']})",
+                    icon=folium.Icon(color="red" if "critical" in cr["severity"].lower() else "orange", icon="camera", prefix="fa")
+                ).add_to(citizen_fg)
+            citizen_fg.add_to(m)
+
         folium.LayerControl(position="topright").add_to(m)
         st_folium(m, width="100%", height=400)
 
-        st.markdown("""
+        st.markdown(f"""
         <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.45rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
-            <span>🔥 <b>Dynamic Risk Heatmap:</b></span>
+            <span>🔥 <b>Risk Heatmap:</b></span>
             <span style="color: #10B981;">● Low (&lt;35%)</span>
-            <span style="color: #38BDF8;">● Mild</span>
             <span style="color: #F59E0B;">● Moderate (35-70%)</span>
-            <span style="color: #EF4444;">● High / Critical (&gt;70%)</span>
+            <span style="color: #EF4444;">● High (&gt;70%)</span>
+            <span style="color: #38BDF8;">● Active Target</span>
+            <span style="color: #F97316;">📸 Field Reports ({len(citizen_reports)})</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1021,11 +1070,12 @@ if app_mode == "Single Location Observatory":
 
     # Detailed Tabs
     st.markdown("---")
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Risk Factor Attribution", 
         "Subsurface Hydrology", 
         "Emergency Protocols & SDMA",
-        "🔔 Automated Email Alerts"
+        "🔔 Automated Email Alerts",
+        "📸 Citizen / Field Geo-Reporting"
     ])
     with tab1:
         st.markdown("##### Primary Drivers Influencing Current Assessment")
@@ -1091,6 +1141,103 @@ if app_mode == "Single Location Observatory":
             sdma_contact=sdma,
             key_suffix="single"
         )
+    with tab5:
+        st.markdown("##### 📸 Real-Time Citizen & Ground Crew Landslide Reporting")
+        st.caption("Empower frontline patrols, village disaster volunteers, and motorists to capture and transmit geo-tagged photographic evidence directly to the active geospatial database.")
+
+        rf_col1, rf_col2 = st.columns([1, 1])
+        with rf_col1:
+            st.markdown("**1. Capture or Upload Field Photo**")
+            cam_photo = st.camera_input("Take Live Ground Photo", key="citizen_cam_photo")
+            up_photo = st.file_uploader("Or Upload Existing Photo (JPG/PNG)", type=["jpg", "jpeg", "png"], key="citizen_up_photo")
+            active_photo = cam_photo if cam_photo is not None else up_photo
+
+            if active_photo is not None:
+                st.image(active_photo, caption="Captured Field Imagery (Ready to transmit)", use_container_width=True)
+
+        with rf_col2:
+            st.markdown("**2. Geolocation & Incident Telemetry**")
+            
+            auto_lat = float(loc_a["lat"])
+            auto_lon = float(loc_a["lon"])
+            
+            if HAS_GEOLOCATION:
+                st.caption("Acquire live browser GPS position:")
+                gps_loc = streamlit_geolocation()
+                if gps_loc and gps_loc.get("latitude") is not None:
+                    auto_lat = float(gps_loc["latitude"])
+                    auto_lon = float(gps_loc["longitude"])
+                    st.success(f"GPS Acquired: {auto_lat:.4f}°N, {auto_lon:.4f}°E (Accuracy: {gps_loc.get('accuracy', 'N/A')} m)")
+            
+            gcol1, gcol2 = st.columns(2)
+            with gcol1:
+                rep_lat = st.number_input("Latitude °N", value=float(auto_lat), min_value=21.0, max_value=30.0, format="%.4f", key="rep_lat_in")
+            with gcol2:
+                rep_lon = st.number_input("Longitude °E", value=float(auto_lon), min_value=88.0, max_value=98.0, format="%.4f", key="rep_lon_in")
+
+            rep_loc_name = st.text_input("Corridor / Landmark Name", value=f"{loc_a['title']} Vicinity", key="rep_loc_name")
+            rep_state = st.selectbox("State", NE_STATES, index=NE_STATES.index(loc_a["state"]) if loc_a["state"] in NE_STATES else 0, key="rep_state")
+            
+            hcol1, hcol2 = st.columns(2)
+            with hcol1:
+                rep_hazard = st.selectbox("Observed Hazard Type", [
+                    "Active Debris Slide & Boulders",
+                    "Escarpment Rockfall",
+                    "Slope Subsidence & Sinking",
+                    "Mudslide & Washout",
+                    "Tension Cracks on Road/Slope",
+                    "Toe-Erosion & Scarp Slump"
+                ], key="rep_hazard")
+            with hcol2:
+                rep_sev = st.selectbox("Incident Severity", [
+                    "Critical / Road Blockage",
+                    "High Hazard",
+                    "Moderate Slope Risk",
+                    "Early Warning / Minor Cracks"
+                ], key="rep_sev")
+
+            rep_desc = st.text_area("Field Description & Road Status", placeholder="e.g. Boulders rolling across carriageway, culvert overflowing, traffic halted...", key="rep_desc")
+            rep_name = st.text_input("Reporter Name / Agency", value="Community Observer", key="rep_name")
+
+            if st.button("🚀 Transmit Geo-Tagged Field Report", type="primary", use_container_width=True, key="btn_submit_rep"):
+                img_bytes = active_photo.getvalue() if active_photo is not None else None
+                new_rec = save_citizen_report(
+                    latitude=rep_lat,
+                    longitude=rep_lon,
+                    location_name=rep_loc_name,
+                    state=rep_state,
+                    hazard_type=rep_hazard,
+                    severity=rep_sev,
+                    description=rep_desc or "Live citizen field hazard report.",
+                    reporter_name=rep_name,
+                    image_bytes=img_bytes
+                )
+                st.success(f"Report `{new_rec['report_id']}` saved to local SQLite database and plotted on Folium map!")
+                st.rerun()
+
+        # Feed of latest field reports
+        st.markdown("---")
+        st.markdown("###### 📋 Recent Field Incidents Log (SQLite Database)")
+        all_reps = get_all_citizen_reports()
+        if all_reps:
+            r_cols = st.columns(min(3, len(all_reps)))
+            for idx, r_item in enumerate(all_reps[:3]):
+                with r_cols[idx]:
+                    r_color = get_severity_badge_color(r_item["severity"])
+                    photo_uri = get_photo_data_uri(r_item["photo_filename"])
+                    st.markdown(f"""
+                    <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 0.75rem; font-size: 0.82rem;">
+                        {'<img src="' + photo_uri + '" style="width: 100%; height: 120px; object-fit: cover; border-radius: 6px; margin-bottom: 0.5rem;" />' if photo_uri else ''}
+                        <div style="font-size: 0.72rem; color: #94A3B8;">{r_item['timestamp']}</div>
+                        <b style="font-size: 0.92rem; color: #F1F5F9;">{r_item['location_name']}</b><br>
+                        <span style="color: #64748B;">{r_item['state']}</span>
+                        <div style="margin: 0.35rem 0; padding: 0.2rem 0.5rem; background: {r_color}22; border-left: 3px solid {r_color}; border-radius: 3px;">
+                            <b style="color: {r_color};">{r_item['severity'].upper()}</b> &bull; {r_item['hazard_type']}
+                        </div>
+                        <div style="font-size: 0.76rem; color: #94A3B8; margin-top: 0.3rem;">{r_item['description'][:90]}...</div>
+                        <div style="font-size: 0.70rem; color: #64748B; margin-top: 0.4rem;">By: <b>{r_item['reporter_name']}</b></div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
 
 
@@ -1283,13 +1430,15 @@ else:
     with col_map_dual:
         st.markdown("<div class='section-title'>Dual-Station Regional Geospatial Map</div>", unsafe_allow_html=True)
         
-        m_ctrl1, m_ctrl2, m_ctrl3 = st.columns([3, 2, 2])
+        m_ctrl1, m_ctrl2, m_ctrl3, m_ctrl4 = st.columns([2.8, 1.8, 2.0, 2.0])
         with m_ctrl1:
-            show_heatmap = st.checkbox("🔥 Predicted Risk Heatmap", value=True, key="dual_heatmap", help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
+            show_heatmap = st.checkbox("🔥 Risk Heatmap", value=True, key="dual_heatmap", help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
         with m_ctrl2:
             show_markers = st.checkbox("Hotspot Pins", value=True, key="dual_markers", help="Toggle clickable regional hotspot markers")
         with m_ctrl3:
-            heatmap_radius = st.slider("Heatmap Blur Radius", min_value=14, max_value=42, value=24, step=2, key="dual_radius")
+            show_citizen_reports_dual = st.checkbox("📸 Field Reports", value=True, key="dual_field_reps", help="Toggle community & ground crew geo-tagged incident pins with photos")
+        with m_ctrl4:
+            heatmap_radius = st.slider("Blur Radius", min_value=14, max_value=42, value=24, step=2, key="dual_radius")
 
         # Center map at midpoint between Pin A and Pin B
         mid_lat = (loc_a['lat'] + loc_b['lat']) / 2.0
@@ -1404,6 +1553,40 @@ else:
             weight=3
         ).add_to(m_dual)
 
+        # 6. Overlay Citizen & Field Reports with Photo Popups
+        citizen_reports_dual = get_all_citizen_reports()
+        if show_citizen_reports_dual and citizen_reports_dual:
+            citizen_fg_dual = folium.FeatureGroup(name="📸 Citizen Field Reports", show=True)
+            for cr in citizen_reports_dual:
+                mcolor = get_severity_badge_color(cr["severity"])
+                photo_uri = get_photo_data_uri(cr["photo_filename"])
+                img_tag = f"<img src='{photo_uri}' style='width: 100%; max-height: 140px; object-fit: cover; border-radius: 6px; margin-bottom: 8px;' />" if photo_uri else ""
+                popup_html = f"""
+                <div style='font-family: sans-serif; font-size: 12px; line-height: 1.45; min-width: 220px; max-width: 260px;'>
+                    {img_tag}
+                    <div style='font-size: 11px; color: #64748B; margin-bottom: 2px;'>{cr['timestamp']}</div>
+                    <b style='font-size: 13px; color: #0F172A;'>{cr['location_name']}</b><br>
+                    <span style='color: #64748B;'>{cr['state']}</span>
+                    <div style='margin: 6px 0; padding: 4px 8px; border-radius: 4px; background: {mcolor}18; border-left: 3px solid {mcolor};'>
+                        <b style='color: {mcolor};'>{cr['severity'].upper()}</b> &bull; {cr['hazard_type']}
+                    </div>
+                    <div style='font-size: 11px; color: #334155; margin-bottom: 6px;'>
+                        {cr['description']}
+                    </div>
+                    <div style='font-size: 10px; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 4px;'>
+                        Reported by: <b>{cr['reporter_name']}</b><br>
+                        GPS: {cr['latitude']:.4f}°N, {cr['longitude']:.4f}°E
+                    </div>
+                </div>
+                """
+                folium.Marker(
+                    location=[cr["latitude"], cr["longitude"]],
+                    popup=folium.Popup(popup_html, max_width=280),
+                    tooltip=f"📸 Field Report: {cr['location_name']} ({cr['severity']})",
+                    icon=folium.Icon(color="red" if "critical" in cr["severity"].lower() else "orange", icon="camera", prefix="fa")
+                ).add_to(citizen_fg_dual)
+            citizen_fg_dual.add_to(m_dual)
+
         folium.LayerControl(position="topright").add_to(m_dual)
         st_folium(m_dual, width="100%", height=400, key="st_folium_dual")
 
@@ -1411,6 +1594,7 @@ else:
         <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.4rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
             <span style="color: #38BDF8;">● <b>Pin A:</b> {loc_a['title']}</span>
             <span style="color: #FB7185;">● <b>Pin B:</b> {loc_b['title']}</span>
+            <span style="color: #F97316;">📸 <b>Field Incidents:</b> {len(citizen_reports_dual)}</span>
             <span style="color: #E2E8F0;">↔ Separation: <b>{deltas['distance_km']} km</b></span>
         </div>
         """, unsafe_allow_html=True)
