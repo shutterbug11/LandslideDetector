@@ -21,6 +21,7 @@ from datetime import datetime
 from utils.regional_data import NE_STATES, NE_HOTSPOTS, SDMA_CONTACTS
 from utils.weather_service import fetch_openmeteo_weather
 from utils.model_service import calculate_landslide_risk, load_assets
+from utils.heatmap_service import compute_hotspot_predictions, generate_risk_heatmap_data
 from utils.pdf_generator import generate_landslide_pdf_report
 from utils.comparison_service import (
     calculate_haversine_distance,
@@ -861,52 +862,94 @@ if app_mode == "Single Location Observatory":
     col_map, col_gauge = st.columns([3, 2])
     with col_map:
         st.markdown("<div class='section-title'>Regional Hazard & Susceptibility Map</div>", unsafe_allow_html=True)
-        m_ctrl1, m_ctrl2 = st.columns([3, 2])
+        m_ctrl1, m_ctrl2, m_ctrl3 = st.columns([3, 2, 2])
         with m_ctrl1:
-            show_heatmap = st.checkbox("Enable Susceptibility Heatmap Distribution", value=True)
+            show_heatmap = st.checkbox("🔥 Predicted Risk Heatmap", value=True, help="Continuous spatial heatmap weighted by ML predicted failure probabilities across the hotspot grid")
         with m_ctrl2:
-            heatmap_radius = st.slider("Heatmap Blur Radius", min_value=12, max_value=32, value=18, step=2)
+            show_markers = st.checkbox("Hotspot Pins", value=True, help="Toggle clickable district hotspot pins with real-time risk scores")
+        with m_ctrl3:
+            heatmap_radius = st.slider("Heatmap Blur Radius", min_value=14, max_value=42, value=24, step=2)
 
         m = folium.Map(location=[26.1, 92.9], zoom_start=7, tiles="CartoDB positron", control_scale=True)
         folium.TileLayer(tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attr='Esri', name='Satellite High-Resolution', overlay=False, control=True).add_to(m)
         folium.TileLayer(tiles='OpenStreetMap', name='OpenStreetMap', overlay=False, control=True).add_to(m)
 
+        # 1. Evaluate real-time predictions across all 27 district hotspots
+        hotspot_preds = compute_hotspot_predictions(weather_a, active_targets=[{**loc_a, "risk": risk_a}])
+
+        # 2. Overlay Continuous Landslide Risk Heatmap (Model Weighted)
         if show_heatmap:
-            heat_points_path = os.path.join("output", "susceptibility_points.json")
-            if os.path.exists(heat_points_path):
-                with open(heat_points_path, "r") as f:
-                    heat_points = json.load(f)
-                heat_fg = folium.FeatureGroup(name="Susceptibility Risk Heatmap", show=True)
-                HeatMap(heat_points, min_opacity=0.40, max_zoom=14, radius=heatmap_radius, blur=14,
-                        gradient={0.20: '#10B981', 0.45: '#38BDF8', 0.65: '#F59E0B', 0.85: '#EF4444', 1.00: '#7F1D1D'}).add_to(heat_fg)
-                heat_fg.add_to(m)
+            risk_heat_points = generate_risk_heatmap_data(weather_a, active_targets=[{**loc_a, "risk": risk_a}], spread_deg=0.09)
+            heat_fg = folium.FeatureGroup(name="🔥 Dynamic Risk Heatmap (Model Weighted)", show=True)
+            HeatMap(
+                risk_heat_points,
+                min_opacity=0.45,
+                max_zoom=14,
+                radius=heatmap_radius,
+                blur=16,
+                gradient={
+                    0.15: '#10B981',
+                    0.35: '#38BDF8',
+                    0.55: '#F59E0B',
+                    0.75: '#F97316',
+                    0.90: '#EF4444',
+                    1.00: '#7F1D1D'
+                }
+            ).add_to(heat_fg)
+            heat_fg.add_to(m)
 
-        hotspots_fg = folium.FeatureGroup(name="Monitored District Hotspots", show=True)
-        for hname, hdata in NE_HOTSPOTS.items():
-            if hdata["vulnerability"] in ["Critical", "Very High"] and hdata["slope"] >= 38:
-                mcolor = "#EF4444"
-            elif hdata["slope"] >= 30:
-                mcolor = "#F59E0B"
-            else:
-                mcolor = "#10B981"
-            popup_html = f"<div style='font-family: sans-serif; font-size: 12px; line-height: 1.4;'><b style='font-size: 13px;'>{hname}</b><br>State: {hdata['state']}<br>Elevation: {hdata['elevation']:,} m &nbsp;|&nbsp; Slope: {hdata['slope']}°<br>Baseline Hazard: <b>{hdata['vulnerability']}</b><br>Geology: {hdata['geology']}</div>"
-            folium.CircleMarker(location=[hdata["lat"], hdata["lon"]], radius=6, popup=folium.Popup(popup_html, max_width=260), tooltip=f"{hname} ({hdata['state']})", color=mcolor, fill=True, fill_color=mcolor, fill_opacity=0.85, weight=1.5).add_to(hotspots_fg)
-        hotspots_fg.add_to(m)
+        # 3. Overlay Monitored District Hotspots (Clickable Markers)
+        if show_markers:
+            hotspots_fg = folium.FeatureGroup(name="Monitored District Hotspots", show=True)
+            for hname, hinfo in hotspot_preds.items():
+                if hinfo.get("is_active_target"):
+                    continue
+                mcolor = hinfo["color"]
+                prob = hinfo["probability"]
+                classification = hinfo["classification"]
+                popup_html = f"""
+                <div style='font-family: sans-serif; font-size: 12px; line-height: 1.45; min-width: 190px;'>
+                    <b style='font-size: 13px; color: #0F172A;'>{hname}</b><br>
+                    <span style='color: #64748B;'>{hinfo['state']}</span>
+                    <div style='margin: 6px 0; padding: 4px 8px; border-radius: 4px; background: {mcolor}18; border-left: 3px solid {mcolor};'>
+                        <b>Predicted Risk: <span style='color: {mcolor}; font-size: 13px;'>{prob:.1f}%</span></b><br>
+                        <span style='font-size: 11px; color: {mcolor}; font-weight: 600;'>{classification.upper()} HAZARD</span>
+                    </div>
+                    <div style='font-size: 11px; color: #475569;'>
+                        Elevation: {hinfo['elevation']:,} m &nbsp;|&nbsp; Slope: {hinfo['slope']}°<br>
+                        Baseline Vulnerability: <b>{hinfo['vulnerability']}</b><br>
+                        Geology: <i>{hinfo['geology']}</i>
+                    </div>
+                </div>
+                """
+                folium.CircleMarker(
+                    location=[hinfo["lat"], hinfo["lon"]],
+                    radius=6,
+                    popup=folium.Popup(popup_html, max_width=280),
+                    tooltip=f"{hname} ({hinfo['state']}) — Risk: {prob:.1f}% ({classification})",
+                    color=mcolor,
+                    fill=True,
+                    fill_color=mcolor,
+                    fill_opacity=0.85,
+                    weight=1.5
+                ).add_to(hotspots_fg)
+            hotspots_fg.add_to(m)
 
+        # 4. Highlight Selected Active Observatory Target
         folium.CircleMarker(
             location=[loc_a['lat'], loc_a['lon']],
             radius=12,
-            popup=f"<b>Active Target:</b> {loc_a['title']}<br>Probability: {risk_a['probability']}%",
-            tooltip=f"Selected Active Target: {loc_a['title']}",
-            color="#38BDF8", fill=True, fill_color="#38BDF8", fill_opacity=0.35, weight=3
+            popup=f"<div style='font-family: sans-serif; font-size: 12px;'><b>Active Target:</b> {loc_a['title']}<br><b>Predicted Risk:</b> <span style='color:{risk_a['color']}'>{risk_a['probability']}%</span> ({risk_a['classification']})<br>Slope: {loc_a['slope']}°</div>",
+            tooltip=f"Selected Active Target: {loc_a['title']} ({risk_a['probability']}%)",
+            color="#38BDF8", fill=True, fill_color="#38BDF8", fill_opacity=0.40, weight=3
         ).add_to(m)
 
         folium.LayerControl(position="topright").add_to(m)
         st_folium(m, width="100%", height=400)
 
         st.markdown("""
-        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.4rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
-            <span><b>Susceptibility Density:</b></span>
+        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.45rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
+            <span>🔥 <b>Dynamic Risk Heatmap:</b></span>
             <span style="color: #10B981;">● Low (&lt;35%)</span>
             <span style="color: #38BDF8;">● Mild</span>
             <span style="color: #F59E0B;">● Moderate (35-70%)</span>
@@ -1240,11 +1283,13 @@ else:
     with col_map_dual:
         st.markdown("<div class='section-title'>Dual-Station Regional Geospatial Map</div>", unsafe_allow_html=True)
         
-        m_ctrl1, m_ctrl2 = st.columns([3, 2])
+        m_ctrl1, m_ctrl2, m_ctrl3 = st.columns([3, 2, 2])
         with m_ctrl1:
-            show_heatmap = st.checkbox("Overlay Regional Susceptibility Heatmap", value=True, key="dual_heatmap")
+            show_heatmap = st.checkbox("🔥 Predicted Risk Heatmap", value=True, key="dual_heatmap", help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
         with m_ctrl2:
-            heatmap_radius = st.slider("Heatmap Blur Radius", min_value=12, max_value=32, value=18, step=2, key="dual_radius")
+            show_markers = st.checkbox("Hotspot Pins", value=True, key="dual_markers", help="Toggle clickable regional hotspot markers")
+        with m_ctrl3:
+            heatmap_radius = st.slider("Heatmap Blur Radius", min_value=14, max_value=42, value=24, step=2, key="dual_radius")
 
         # Center map at midpoint between Pin A and Pin B
         mid_lat = (loc_a['lat'] + loc_b['lat']) / 2.0
@@ -1254,29 +1299,63 @@ else:
         folium.TileLayer(tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attr='Esri', name='Satellite High-Resolution', overlay=False, control=True).add_to(m_dual)
         folium.TileLayer(tiles='OpenStreetMap', name='OpenStreetMap', overlay=False, control=True).add_to(m_dual)
 
-        # 1. Overlay Heatmap
+        # 1. Overlay Dynamic Risk Heatmap
+        hotspot_preds_dual = compute_hotspot_predictions(weather_a, active_targets=[{**loc_a, "risk": risk_a}, {**loc_b, "risk": risk_b}])
         if show_heatmap:
-            heat_points_path = os.path.join("output", "susceptibility_points.json")
-            if os.path.exists(heat_points_path):
-                with open(heat_points_path, "r") as f:
-                    heat_points = json.load(f)
-                heat_fg = folium.FeatureGroup(name="Susceptibility Risk Heatmap", show=True)
-                HeatMap(heat_points, min_opacity=0.40, max_zoom=14, radius=heatmap_radius, blur=14,
-                        gradient={0.20: '#10B981', 0.45: '#38BDF8', 0.65: '#F59E0B', 0.85: '#EF4444', 1.00: '#7F1D1D'}).add_to(heat_fg)
-                heat_fg.add_to(m_dual)
+            risk_heat_points_dual = generate_risk_heatmap_data(weather_a, active_targets=[{**loc_a, "risk": risk_a}, {**loc_b, "risk": risk_b}], spread_deg=0.09)
+            heat_fg = folium.FeatureGroup(name="🔥 Dynamic Landslide Risk Heatmap", show=True)
+            HeatMap(
+                risk_heat_points_dual,
+                min_opacity=0.45,
+                max_zoom=14,
+                radius=heatmap_radius,
+                blur=16,
+                gradient={
+                    0.15: '#10B981',
+                    0.35: '#38BDF8',
+                    0.55: '#F59E0B',
+                    0.75: '#F97316',
+                    0.90: '#EF4444',
+                    1.00: '#7F1D1D'
+                }
+            ).add_to(heat_fg)
+            heat_fg.add_to(m_dual)
 
         # 2. Add District Hotspots
-        hotspots_fg = folium.FeatureGroup(name="Regional Hotspots", show=True)
-        for hname, hdata in NE_HOTSPOTS.items():
-            if hdata["vulnerability"] in ["Critical", "Very High"] and hdata["slope"] >= 38:
-                mcolor = "#EF4444"
-            elif hdata["slope"] >= 30:
-                mcolor = "#F59E0B"
-            else:
-                mcolor = "#10B981"
-            popup_html = f"<div style='font-family: sans-serif; font-size: 12px; line-height: 1.4;'><b style='font-size: 13px;'>{hname}</b><br>State: {hdata['state']}<br>Elevation: {hdata['elevation']:,} m &nbsp;|&nbsp; Slope: {hdata['slope']}°<br>Baseline Hazard: <b>{hdata['vulnerability']}</b></div>"
-            folium.CircleMarker(location=[hdata["lat"], hdata["lon"]], radius=5, popup=folium.Popup(popup_html, max_width=250), tooltip=f"{hname}", color=mcolor, fill=True, fill_color=mcolor, fill_opacity=0.75, weight=1).add_to(hotspots_fg)
-        hotspots_fg.add_to(m_dual)
+        if show_markers:
+            hotspots_fg = folium.FeatureGroup(name="Regional Hotspots", show=True)
+            for hname, hinfo in hotspot_preds_dual.items():
+                if hinfo.get("is_active_target"):
+                    continue
+                mcolor = hinfo["color"]
+                prob = hinfo["probability"]
+                classification = hinfo["classification"]
+                popup_html = f"""
+                <div style='font-family: sans-serif; font-size: 12px; line-height: 1.45; min-width: 180px;'>
+                    <b style='font-size: 13px; color: #0F172A;'>{hname}</b><br>
+                    <span style='color: #64748B;'>{hinfo['state']}</span>
+                    <div style='margin: 6px 0; padding: 4px 8px; border-radius: 4px; background: {mcolor}18; border-left: 3px solid {mcolor};'>
+                        <b>Predicted Risk: <span style='color: {mcolor};'>{prob:.1f}%</span></b><br>
+                        <span style='font-size: 11px; color: {mcolor}; font-weight: 600;'>{classification.upper()} HAZARD</span>
+                    </div>
+                    <div style='font-size: 11px; color: #475569;'>
+                        Elevation: {hinfo['elevation']:,} m &nbsp;|&nbsp; Slope: {hinfo['slope']}°<br>
+                        Baseline Hazard: <b>{hinfo['vulnerability']}</b>
+                    </div>
+                </div>
+                """
+                folium.CircleMarker(
+                    location=[hinfo["lat"], hinfo["lon"]],
+                    radius=5,
+                    popup=folium.Popup(popup_html, max_width=260),
+                    tooltip=f"{hname} — Risk: {prob:.1f}% ({classification})",
+                    color=mcolor,
+                    fill=True,
+                    fill_color=mcolor,
+                    fill_opacity=0.75,
+                    weight=1
+                ).add_to(hotspots_fg)
+            hotspots_fg.add_to(m_dual)
 
         # 3. Add Geodesic Connection Line
         folium.PolyLine(
