@@ -384,12 +384,14 @@ def create_side_by_side_gauge(
     """
     Generate an individual sleek radial gauge for side-by-side risk score display.
     """
+    upper_c = classification.upper()
+    display_title = upper_c if ("RISK" in upper_c or not classification.isascii()) else f"{upper_c} RISK"
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=prob_val,
         domain={'x': [0, 1], 'y': [0, 1]},
         number={'suffix': "%", 'font': {'size': 38, 'family': 'Plus Jakarta Sans', 'color': color}},
-        title={'text': f"<b>{classification.upper()} RISK</b><br><span style='font-size:0.75em;color:#94A3B8'>{title_text}</span>", 'font': {'size': 16, 'color': '#E2E8F0'}},
+        title={'text': f"<b>{display_title}</b><br><span style='font-size:0.75em;color:#94A3B8'>{title_text}</span>", 'font': {'size': 16, 'color': '#E2E8F0'}},
         gauge={
             'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#475569", 'tickfont': {'color': '#94A3B8', 'size': 10}},
             'bar': {'color': color, 'thickness': 0.28},

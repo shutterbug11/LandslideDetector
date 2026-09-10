@@ -318,6 +318,7 @@ def get_location_profile_from_sidebar(
     key_prefix: str,
     label: str,
     pin_badge_class: str,
+    target_lang: str = "eng_Latn",
     default_state_idx: int = 0,
     default_hotspot_idx: int = 0
 ) -> dict:
@@ -325,18 +326,20 @@ def get_location_profile_from_sidebar(
     Renders sidebar inputs for either preset hotspots or custom coordinates
     and returns a structured location profile dictionary.
     """
-    st.markdown(f"<div class='{pin_badge_class}'>● {label}</div>", unsafe_allow_html=True)
+    trans_label = translate_text(label, target_lang)
+    st.markdown(f"<div class='{pin_badge_class}'>● {trans_label}</div>", unsafe_allow_html=True)
     
     sel_mode = st.radio(
         f"Input Mode ({label})",
         ["Preset Vulnerable Hotspots", "Custom GPS Coordinates"],
+        format_func=lambda x: translate_text(x, target_lang),
         key=f"{key_prefix}_sel_mode",
         label_visibility="collapsed"
     )
 
     if sel_mode == "Preset Vulnerable Hotspots":
         sel_state = st.selectbox(
-            f"State ({label})",
+            f"{translate_text('State', target_lang)} ({trans_label})",
             NE_STATES,
             index=min(default_state_idx, len(NE_STATES) - 1),
             key=f"{key_prefix}_state"
@@ -346,7 +349,7 @@ def get_location_profile_from_sidebar(
         
         idx = min(default_hotspot_idx, len(hotspot_names) - 1) if hotspot_names else 0
         sel_hotspot = st.selectbox(
-            f"District / Corridor ({label})",
+            f"{translate_text('District / Corridor', target_lang)} ({trans_label})",
             hotspot_names,
             index=idx,
             key=f"{key_prefix}_hotspot"
@@ -377,24 +380,24 @@ def get_location_profile_from_sidebar(
             }
         }
     else:
-        st.markdown(f"**Manual Coordinates ({label})**")
+        st.markdown(f"**{translate_text('Manual Coordinates', target_lang)} ({trans_label})**")
         lat = st.number_input(
-            f"Latitude °N ({label})",
+            f"{translate_text('Latitude °N', target_lang)} ({trans_label})",
             min_value=21.0, max_value=30.0,
             value=27.3389 if key_prefix == "loc_a" else 27.5042,
             step=0.01, format="%.4f",
             key=f"{key_prefix}_lat"
         )
         lon = st.number_input(
-            f"Longitude °E ({label})",
+            f"{translate_text('Longitude °E', target_lang)} ({trans_label})",
             min_value=88.0, max_value=98.0,
             value=88.6065 if key_prefix == "loc_a" else 88.5298,
             step=0.01, format="%.4f",
             key=f"{key_prefix}_lon"
         )
-        elev = st.slider(f"Elevation m ({label})", 50, 4500, 1600 if key_prefix == "loc_a" else 1310, step=50, key=f"{key_prefix}_elev")
-        slope = st.slider(f"Terrain Slope ° ({label})", 5.0, 75.0, 36.0 if key_prefix == "loc_a" else 44.0, step=1.0, key=f"{key_prefix}_slope")
-        aspect = st.slider(f"Slope Aspect ° ({label})", 0.0, 360.0, 180.0, step=10.0, key=f"{key_prefix}_aspect")
+        elev = st.slider(f"{translate_text('Elevation m', target_lang)} ({trans_label})", 50, 4500, 1600 if key_prefix == "loc_a" else 1310, step=50, key=f"{key_prefix}_elev")
+        slope = st.slider(f"{translate_text('Terrain Slope °', target_lang)} ({trans_label})", 5.0, 75.0, 36.0 if key_prefix == "loc_a" else 44.0, step=1.0, key=f"{key_prefix}_slope")
+        aspect = st.slider(f"{translate_text('Slope Aspect °', target_lang)} ({trans_label})", 0.0, 360.0, 180.0, step=10.0, key=f"{key_prefix}_aspect")
         
         return {
             "title": f"Custom Position ({lat:.3f}°N, {lon:.3f}°E)",
@@ -430,26 +433,35 @@ def render_email_alert_subscription_card(
     current_risk: dict = None,
     current_weather: dict = None,
     sdma_contact: dict = None,
-    key_suffix: str = "main"
+    key_suffix: str = "main",
+    target_lang: str = "eng_Latn"
 ):
     """
     Renders the Visitor Email Alert Subscription interface, real-time SMTP
     test dispatcher, anti-spam linter score, and deliverability knowledge base.
     """
-    st.markdown("""
+    lbl_network = translate_text("Resident & Visitor Safety Network", target_lang)
+    lbl_service = translate_text("Automated Early Warning Email Alert Service", target_lang)
+    lbl_safe_badge = translate_text("100% SPAM-SAFE DELIVERABILITY", target_lang)
+    lbl_desc = translate_text(
+        "Register your email address to receive immediate meteorological and geomorphic hazard warnings when "
+        "predicted landslide failure probability surpasses your customized risk threshold.",
+        target_lang
+    )
+
+    st.markdown(f"""
     <div style="background: rgba(15, 23, 42, 0.45); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 1.25rem 1.4rem; margin-bottom: 1.25rem;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-                <span style="font-size: 0.72rem; font-weight: 700; color: #38BDF8; letter-spacing: 0.1em; text-transform: uppercase;">Resident & Visitor Safety Network</span>
-                <div style="font-size: 1.35rem; font-weight: 700; color: #FFFFFF; margin-top: 0.15rem;">Automated Early Warning Email Alert Service</div>
+                <span style="font-size: 0.72rem; font-weight: 700; color: #38BDF8; letter-spacing: 0.1em; text-transform: uppercase;">{lbl_network}</span>
+                <div style="font-size: 1.35rem; font-weight: 700; color: #FFFFFF; margin-top: 0.15rem;">{lbl_service}</div>
             </div>
             <span style="display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(16, 185, 129, 0.15); color: #34D399; border: 1px solid rgba(52, 211, 153, 0.35); padding: 0.3rem 0.75rem; border-radius: 9999px; font-size: 0.74rem; font-weight: 700;">
-                <span style="height: 7px; width: 7px; border-radius: 50%; background-color: #10B981;"></span> 100% SPAM-SAFE DELIVERABILITY
+                <span style="height: 7px; width: 7px; border-radius: 50%; background-color: #10B981;"></span> {lbl_safe_badge}
             </span>
         </div>
         <div style="font-size: 0.85rem; color: #94A3B8; margin-top: 0.45rem; line-height: 1.5;">
-            Register your email address to receive immediate meteorological and geomorphic hazard warnings when 
-            predicted landslide failure probability surpasses your customized risk threshold.
+            {lbl_desc}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -460,9 +472,9 @@ def render_email_alert_subscription_card(
     # 1. SUBSCRIPTION FORM
     # -------------------------------------------------------------------------
     with col_sub:
-        st.markdown("##### 1. Register Resident Alert Preferences")
+        st.markdown(f"##### {translate_text('1. Register Resident Alert Preferences', target_lang)}")
         sub_email = st.text_input(
-            "Recipient Email Address",
+            translate_text("Recipient Email Address", target_lang),
             placeholder="resident@example.com",
             key=f"sub_email_{key_suffix}",
             help="Enter the Gmail or work email where you wish to receive early warning alerts."
@@ -472,7 +484,7 @@ def render_email_alert_subscription_card(
         with st_col1:
             st_idx = NE_STATES.index(default_state) if default_state in NE_STATES else 0
             sel_state = st.selectbox(
-                "State of Residence",
+                translate_text("State of Residence", target_lang),
                 NE_STATES,
                 index=st_idx,
                 key=f"sub_state_{key_suffix}"
@@ -487,14 +499,15 @@ def render_email_alert_subscription_card(
                 hotspot_idx = state_hotspots.index(default_region)
                 
             sel_region = st.selectbox(
-                "Living Region / Corridor",
+                translate_text("Living Region / Corridor", target_lang),
                 state_hotspots,
                 index=hotspot_idx,
                 key=f"sub_region_{key_suffix}"
             )
 
         # Threshold Tier Selection
-        st.markdown("<div style='font-size: 0.82rem; font-weight: 600; color: #CBD5E1; margin-top: 0.5rem;'>Trigger Threshold Policy</div>", unsafe_allow_html=True)
+        lbl_trig_policy = translate_text("Trigger Threshold Policy", target_lang)
+        st.markdown(f"<div style='font-size: 0.82rem; font-weight: 600; color: #CBD5E1; margin-top: 0.5rem;'>{lbl_trig_policy}</div>", unsafe_allow_html=True)
         tier_choice = st.radio(
             "Threshold Tier",
             [
@@ -504,12 +517,13 @@ def render_email_alert_subscription_card(
             ],
             index=0,
             key=f"tier_choice_{key_suffix}",
+            format_func=lambda opt: translate_text(opt, target_lang),
             label_visibility="collapsed"
         )
 
         if "Custom" in tier_choice:
             threshold_val = st.slider(
-                "Select Custom Alert Threshold (%)",
+                translate_text("Select Custom Alert Threshold (%)", target_lang),
                 min_value=20,
                 max_value=95,
                 value=65,
@@ -524,7 +538,7 @@ def render_email_alert_subscription_card(
 
         st.caption(f"Configured policy: Trigger alert when predicted failure probability in **{sel_region}** breaches **{threshold_val:.0f}%**.")
 
-        if st.button("🔔 Subscribe to Early Warning Alerts", key=f"btn_subscribe_{key_suffix}", use_container_width=True):
+        if st.button(translate_text("🔔 Subscribe to Early Warning Alerts", target_lang), key=f"btn_subscribe_{key_suffix}", use_container_width=True):
             if not sub_email:
                 st.error("Please provide an email address before subscribing.")
             elif not validate_email_address(sub_email):
@@ -541,17 +555,17 @@ def render_email_alert_subscription_card(
     # 2. INSTANT TEST DISPATCHER & DELIVERABILITY VERIFICATION
     # -------------------------------------------------------------------------
     with col_test:
-        st.markdown("##### 2. Verify Delivery & Anti-Spam Compliance")
-        st.caption("Perform an immediate SMTP test dispatch to verify that GroundCheck alerts arrive directly into your primary inbox (not Spam or Promotions).")
+        st.markdown(f"##### {translate_text('2. Verify Delivery & Anti-Spam Compliance', target_lang)}")
+        st.caption(translate_text("Perform an immediate SMTP test dispatch to verify that GroundCheck alerts arrive directly into your primary inbox (not Spam or Promotions).", target_lang))
 
         test_email_input = st.text_input(
-            "Send Instant Verification To:",
+            translate_text("Send Instant Verification To:", target_lang),
             value=sub_email if sub_email else "",
             placeholder="resident@gmail.com",
             key=f"test_email_input_{key_suffix}"
         )
 
-        if st.button("📨 Send Immediate Test Alert Email", key=f"btn_test_dispatch_{key_suffix}", use_container_width=True):
+        if st.button(translate_text("📨 Send Immediate Test Alert Email", target_lang), key=f"btn_test_dispatch_{key_suffix}", use_container_width=True):
             if not test_email_input:
                 st.error("Please specify a recipient email address for the test.")
             elif not validate_email_address(test_email_input):
@@ -586,12 +600,16 @@ def render_email_alert_subscription_card(
                     """)
 
         # Spam Prevention Summary Badge
+        lbl_why_spam = translate_text("Why GroundCheck Emails Bypass Spam Filters:", target_lang)
+        lbl_panic = translate_text("Zero Panic Terminology:", target_lang)
+        lbl_rfc = translate_text("RFC 8058 Compliant:", target_lang)
+        lbl_track = translate_text("No Tracking Anchors:", target_lang)
         st.markdown(f"""
         <div style="background: rgba(128, 128, 128, 0.05); border: 1px solid rgba(128, 128, 128, 0.16); border-radius: 8px; padding: 0.85rem 1rem; margin-top: 0.75rem; font-size: 0.8rem; color: #94A3B8; line-height: 1.5;">
-            <b style="color: #CBD5E1;">Why GroundCheck Emails Bypass Spam Filters:</b><br>
-            • <b>Zero Panic Terminology:</b> 100+ aggressive urgency terms (e.g., "URGENT", "ACT NOW") eliminated in favor of official scientific phrasing.<br>
-            • <b>RFC 8058 Compliant:</b> Includes one-click unsubscribe headers mandated by Google & Yahoo 2024 Bulk Sender rules.<br>
-            • <b>No Tracking Anchors:</b> Direct, transparent links with no third-party URL shorteners or deceptive redirects.
+            <b style="color: #CBD5E1;">{lbl_why_spam}</b><br>
+            • <b>{lbl_panic}</b> 100+ aggressive urgency terms (e.g., "URGENT", "ACT NOW") eliminated in favor of official scientific phrasing.<br>
+            • <b>{lbl_rfc}</b> Includes one-click unsubscribe headers mandated by Google & Yahoo 2024 Bulk Sender rules.<br>
+            • <b>{lbl_track}</b> Direct, transparent links with no third-party URL shorteners or deceptive redirects.
         </div>
         """, unsafe_allow_html=True)
 
@@ -602,7 +620,7 @@ def render_email_alert_subscription_card(
     exp1, exp2 = st.columns(2)
 
     with exp1:
-        with st.expander("📖 Gmail Spam Prevention Knowledge Base & Standards", expanded=False):
+        with st.expander(f"📖 {translate_text('Gmail Spam Prevention Knowledge Base & Standards', target_lang)}", expanded=False):
             st.markdown("""
             **Gmail Bayesian Filter Standards Applied in GroundCheck:**
             
@@ -618,9 +636,10 @@ def render_email_alert_subscription_card(
             """)
 
     with exp2:
-        with st.expander("📋 Manage Active Subscriptions & Opt-Out", expanded=False):
+        with st.expander(f"📋 {translate_text('Manage Active Subscriptions & Opt-Out', target_lang)}", expanded=False):
             all_subs = load_subscribers()
-            st.markdown(f"**Total Registered Subscribers:** `{len(all_subs)}`")
+            lbl_tot_sub = translate_text("Total Registered Subscribers:", target_lang)
+            st.markdown(f"**{lbl_tot_sub}** `{len(all_subs)}`")
             if all_subs:
                 clean_subs = []
                 for s in all_subs:
@@ -635,10 +654,10 @@ def render_email_alert_subscription_card(
                 
                 unsub_col1, unsub_col2 = st.columns([3, 2])
                 with unsub_col1:
-                    unsub_email = st.text_input("Unsubscribe Email", placeholder="email@example.com", key=f"unsub_in_{key_suffix}")
+                    unsub_email = st.text_input(translate_text("Unsubscribe Email", target_lang), placeholder="email@example.com", key=f"unsub_in_{key_suffix}")
                 with unsub_col2:
                     st.markdown("<div style='padding-top: 1.7rem;'></div>", unsafe_allow_html=True)
-                    if st.button("Unsubscribe", key=f"btn_unsub_{key_suffix}", use_container_width=True):
+                    if st.button(translate_text("Unsubscribe", target_lang), key=f"btn_unsub_{key_suffix}", use_container_width=True):
                         if unsub_email:
                             u_res = remove_subscriber(unsub_email)
                             if u_res.get("status") == "success":
@@ -655,14 +674,6 @@ def render_email_alert_subscription_card(
 # -----------------------------------------------------------------------------
 
 with st.sidebar:
-    st.markdown("""
-    <div class="sidebar-header">
-        <div class="sidebar-agency">Earth Observation & Hazard Mitigation</div>
-        <div class="sidebar-title">Landslide Early Warning</div>
-        <div class="sidebar-region">North Eastern Himalayan Region, India</div>
-    </div>
-    """, unsafe_allow_html=True)
-
     # Multilingual Support (AI4Bharat IndicTrans2)
     selected_lang_label = st.selectbox(
         "🌐 Language / ভাষা",
@@ -672,9 +683,22 @@ with st.sidebar:
     )
     target_lang = LANG_OPTIONS[selected_lang_label]
 
+    agency_txt = translate_text("Earth Observation & Hazard Mitigation", target_lang)
+    title_txt = translate_text("Landslide Early Warning", target_lang)
+    region_txt = translate_text("North Eastern Himalayan Region, India", target_lang)
+
+    st.markdown(f"""
+    <div class="sidebar-header">
+        <div class="sidebar-agency">{agency_txt}</div>
+        <div class="sidebar-title">{title_txt}</div>
+        <div class="sidebar-region">{region_txt}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     app_mode = st.radio(
-        "Observation Mode",
+        translate_text("Observation Mode", target_lang),
         ["Single Location Observatory", "Compare Locations (Dual Mode)"],
+        format_func=lambda x: translate_text(x, target_lang),
         index=0,
         help="Select between monitoring a single high-priority sector or pinning two locations simultaneously for a side-by-side risk and meteorological comparison."
     )
@@ -682,11 +706,11 @@ with st.sidebar:
     st.markdown("---")
 
     if app_mode == "Single Location Observatory":
-        st.subheader("Geographic Scope & Target")
-        loc_a = get_location_profile_from_sidebar("loc_single", "Target Location", "pin-badge-a", default_state_idx=0, default_hotspot_idx=0)
+        st.subheader(translate_text("Geographic Scope & Target", target_lang))
+        loc_a = get_location_profile_from_sidebar("loc_single", "Target Location", "pin-badge-a", target_lang=target_lang, default_state_idx=0, default_hotspot_idx=0)
         loc_b = None
     else:
-        st.subheader("Pin Two Locations to Compare")
+        st.subheader(translate_text("Pin Two Locations to Compare", target_lang))
 
         # Preset Pair Quick Selector
         preset_pairs = {
@@ -697,7 +721,7 @@ with st.sidebar:
             "Aizawl vs Lunglei (Mizoram Fold Belts)": ("Mizoram", 0, "Mizoram", 1),
             "Itanagar vs Tawang (Arunachal Foothills vs Ridge)": ("Arunachal Pradesh", 0, "Arunachal Pradesh", 1),
         }
-        selected_pair_key = st.selectbox("Quick Comparison Preset", list(preset_pairs.keys()), index=0)
+        selected_pair_key = st.selectbox(translate_text("Quick Comparison Preset", target_lang), list(preset_pairs.keys()), index=0)
 
         # Handle Preset Selection
         pair_val = preset_pairs[selected_pair_key]
@@ -710,24 +734,28 @@ with st.sidebar:
             st_b_idx, idx_b = 0, 1
 
         # Pin A & Pin B in separate expanders or sections
-        st.markdown("#### Location A (Primary Pin)")
-        loc_a = get_location_profile_from_sidebar("loc_a", "Pinned Location A", "pin-badge-a", default_state_idx=st_a_idx, default_hotspot_idx=idx_a)
+        st.markdown(f"#### {translate_text('Location A (Primary Pin)', target_lang)}")
+        loc_a = get_location_profile_from_sidebar("loc_a", "Pinned Location A", "pin-badge-a", target_lang=target_lang, default_state_idx=st_a_idx, default_hotspot_idx=idx_a)
 
         st.markdown("---")
-        st.markdown("#### Location B (Comparison Pin)")
-        loc_b = get_location_profile_from_sidebar("loc_b", "Pinned Location B", "pin-badge-b", default_state_idx=st_b_idx, default_hotspot_idx=idx_b)
+        st.markdown(f"#### {translate_text('Location B (Comparison Pin)', target_lang)}")
+        loc_b = get_location_profile_from_sidebar("loc_b", "Pinned Location B", "pin-badge-b", target_lang=target_lang, default_state_idx=st_b_idx, default_hotspot_idx=idx_b)
 
     st.markdown("---")
-    st.caption("""
-    **Advisory Tiers (GSI / NDMA Standard):**
-    * **Low Risk (<35%)**: Baseline stability, normal vigilance
-    * **Medium Risk (35-70%)**: Saturated slope conditions, caution advised
-    * **High Risk (>70%)**: Critical failure probability, evacuation protocol
+    adv_title = translate_text("Advisory Tiers (GSI / NDMA Standard):", target_lang)
+    adv_low = translate_text("Low Risk (<35%): Baseline stability, normal vigilance", target_lang)
+    adv_med = translate_text("Medium Risk (35-70%): Saturated slope conditions, caution advised", target_lang)
+    adv_high = translate_text("High Risk (>70%): Critical failure probability, evacuation protocol", target_lang)
+    st.caption(f"""
+    **{adv_title}**
+    * **{adv_low}**
+    * **{adv_med}**
+    * **{adv_high}**
     """)
 
-    with st.expander("🔔 Resident Alert Registry", expanded=False):
+    with st.expander(f"🔔 {translate_text('Resident Alert Registry', target_lang)}", expanded=False):
         subs_list = load_subscribers()
-        st.markdown(f"**Enrolled Subscribers:** `{len(subs_list)} registered`")
+        st.markdown(f"**{translate_text('Enrolled Subscribers:', target_lang)}** `{len(subs_list)} registered`")
         st.caption("Active automated early warning alerts configured across North Eastern hotspots.")
 
 
@@ -779,12 +807,16 @@ if app_mode == "Single Location Observatory":
 
     with col_h1:
         st.markdown(f"<div class='main-title'>{loc_a['title']}</div>", unsafe_allow_html=True)
+        lbl_state = translate_text("State:", target_lang)
+        lbl_elev = translate_text("Elevation:", target_lang)
+        lbl_slope = translate_text("Slope Gradient:", target_lang)
+        lbl_geo = translate_text("Geology:", target_lang)
         st.markdown(f"""
         <div class='sub-title'>
-            State: <b>{loc_a['state']}</b> &nbsp;|&nbsp; 
-            Elevation: <b>{loc_a['elevation']:,} m</b> &nbsp;|&nbsp; 
-            Slope Gradient: <b>{loc_a['slope']}°</b> &nbsp;|&nbsp; 
-            Geology: <i>{loc_a['geology']}</i>
+            {lbl_state} <b>{loc_a['state']}</b> &nbsp;|&nbsp; 
+            {lbl_elev} <b>{loc_a['elevation']:,} m</b> &nbsp;|&nbsp; 
+            {lbl_slope} <b>{loc_a['slope']}°</b> &nbsp;|&nbsp; 
+            {lbl_geo} <i>{loc_a['geology']}</i>
         </div>
         """, unsafe_allow_html=True)
 
@@ -821,7 +853,7 @@ if app_mode == "Single Location Observatory":
         
         st.markdown("<div style='padding-top: 0.35rem;'></div>", unsafe_allow_html=True)
         st.download_button(
-            label="Export Report as PDF",
+            label=translate_text("Export Report as PDF", target_lang),
             data=pdf_bytes,
             file_name=report_filename,
             mime="application/pdf",
@@ -875,42 +907,42 @@ if app_mode == "Single Location Observatory":
     with mcol1:
         st.markdown(f"""
         <div class="card">
-            <div class="metric-label">Landslide Probability</div>
+            <div class="metric-label">{translate_text("Landslide Probability", target_lang)}</div>
             <div class="metric-value" style="color: {risk_a['color']};">{risk_a['probability']}%</div>
-            <div class="metric-sub">Ensemble Geo-Hydrological</div>
+            <div class="metric-sub">{translate_text("Ensemble Geo-Hydrological", target_lang)}</div>
         </div>
         """, unsafe_allow_html=True)
     with mcol2:
         st.markdown(f"""
         <div class="card">
-            <div class="metric-label">24h Rainfall Total</div>
+            <div class="metric-label">{translate_text("24h Rainfall Total", target_lang)}</div>
             <div class="metric-value">{triggers.get('rain_past_24h', 0.0):.1f} mm</div>
-            <div class="metric-sub">72h Total: {triggers.get('rain_past_72h', 0.0):.1f} mm</div>
+            <div class="metric-sub">{translate_text("72h Total", target_lang)}: {triggers.get('rain_past_72h', 0.0):.1f} mm</div>
         </div>
         """, unsafe_allow_html=True)
     with mcol3:
         st.markdown(f"""
         <div class="card">
-            <div class="metric-label">Topsoil Saturation (0-9cm)</div>
+            <div class="metric-label">{translate_text("Topsoil Saturation (0-9cm)", target_lang)}</div>
             <div class="metric-value">{triggers.get('soil_moisture_top', 0.25)*100:.1f}%</div>
-            <div class="metric-sub">Subsoil: {triggers.get('soil_moisture_deep', 0.30)*100:.1f}%</div>
+            <div class="metric-sub">{translate_text("Subsoil", target_lang)}: {triggers.get('soil_moisture_deep', 0.30)*100:.1f}%</div>
         </div>
         """, unsafe_allow_html=True)
     with mcol4:
         st.markdown(f"""
         <div class="card">
-            <div class="metric-label">Surface Temperature</div>
+            <div class="metric-label">{translate_text("Surface Temperature", target_lang)}</div>
             <div class="metric-value">{curr_weather.get('temperature', 20.0):.1f} °C</div>
-            <div class="metric-sub">Apparent: {curr_weather.get('apparent_temperature', 20.0):.1f} °C</div>
+            <div class="metric-sub">{translate_text("Apparent", target_lang)}: {curr_weather.get('apparent_temperature', 20.0):.1f} °C</div>
         </div>
         """, unsafe_allow_html=True)
     with mcol5:
         humidity_val = curr_weather.get('humidity', 75)
         st.markdown(f"""
         <div class="card">
-            <div class="metric-label">Relative Humidity</div>
+            <div class="metric-label">{translate_text("Relative Humidity", target_lang)}</div>
             <div class="metric-value">{humidity_val:.0f}%</div>
-            <div class="metric-sub">Current Rain Rate: {curr_weather.get('precipitation_rate', 0.0):.1f} mm/h</div>
+            <div class="metric-sub">{translate_text("Current Rain Rate", target_lang)}: {curr_weather.get('precipitation_rate', 0.0):.1f} mm/h</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -926,16 +958,16 @@ if app_mode == "Single Location Observatory":
     # Map & Gauge Section
     col_map, col_gauge = st.columns([3, 2])
     with col_map:
-        st.markdown("<div class='section-title'>Regional Hazard & Susceptibility Map</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-title'>{translate_text('Regional Hazard & Susceptibility Map', target_lang)}</div>", unsafe_allow_html=True)
         m_ctrl1, m_ctrl2, m_ctrl3, m_ctrl4 = st.columns([2.8, 1.8, 2.0, 2.0])
         with m_ctrl1:
-            show_heatmap = st.checkbox("🔥 Risk Heatmap", value=True, help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
+            show_heatmap = st.checkbox(translate_text("🔥 Risk Heatmap", target_lang), value=True, help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
         with m_ctrl2:
-            show_markers = st.checkbox("Hotspot Pins", value=True, help="District hotspot markers with model risk scores")
+            show_markers = st.checkbox(translate_text("Hotspot Pins", target_lang), value=True, help="District hotspot markers with model risk scores")
         with m_ctrl3:
-            show_citizen_reports = st.checkbox("📸 Field Reports", value=True, help="Toggle community & ground crew geo-tagged incident pins with photos")
+            show_citizen_reports = st.checkbox(translate_text("📸 Field Reports", target_lang), value=True, help="Toggle community & ground crew geo-tagged incident pins with photos")
         with m_ctrl4:
-            heatmap_radius = st.slider("Blur Radius", min_value=14, max_value=42, value=24, step=2)
+            heatmap_radius = st.slider(translate_text("Blur Radius", target_lang), min_value=14, max_value=42, value=24, step=2)
 
         m = folium.Map(location=[26.1, 92.9], zoom_start=7, tiles="CartoDB positron", control_scale=True)
         folium.TileLayer(tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attr='Esri', name='Satellite High-Resolution', overlay=False, control=True).add_to(m)
@@ -1048,19 +1080,26 @@ if app_mode == "Single Location Observatory":
         folium.LayerControl(position="topright").add_to(m)
         render_folium_map(m, height=420)
 
+        lbl_heat = translate_text("Risk Heatmap", target_lang)
+        lbl_low = translate_text("Low Risk", target_lang)
+        lbl_med = translate_text("Medium Risk", target_lang)
+        lbl_high = translate_text("High Risk", target_lang)
+        lbl_target = translate_text("Target Location", target_lang)
+        lbl_reps = translate_text("Field Reports", target_lang)
+
         st.markdown(f"""
         <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.45rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
-            <span>🔥 <b>Risk Heatmap:</b></span>
-            <span style="color: #10B981;">● Low (&lt;35%)</span>
-            <span style="color: #F59E0B;">● Moderate (35-70%)</span>
-            <span style="color: #EF4444;">● High (&gt;70%)</span>
-            <span style="color: #38BDF8;">● Active Target</span>
-            <span style="color: #F97316;">📸 Field Reports ({len(citizen_reports)})</span>
+            <span>🔥 <b>{lbl_heat}:</b></span>
+            <span style="color: #10B981;">● {lbl_low} (&lt;35%)</span>
+            <span style="color: #F59E0B;">● {lbl_med} (35-70%)</span>
+            <span style="color: #EF4444;">● {lbl_high} (&gt;70%)</span>
+            <span style="color: #38BDF8;">● {lbl_target}</span>
+            <span style="color: #F97316;">📸 {lbl_reps} ({len(citizen_reports)})</span>
         </div>
         """, unsafe_allow_html=True)
 
     with col_gauge:
-        st.markdown("<div class='section-title'>Landslide Probability Index</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-title'>{translate_text('Landslide Probability Index', target_lang)}</div>", unsafe_allow_html=True)
         gauge_fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=risk_a["probability"],
@@ -1084,18 +1123,22 @@ if app_mode == "Single Location Observatory":
         gauge_fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=290, margin=dict(l=20, r=20, t=50, b=10), font={'family': 'Plus Jakarta Sans, sans-serif'})
         st.plotly_chart(gauge_fig, use_container_width=True)
 
+        lbl_breakdown = translate_text("Model Contribution Breakdown:", target_lang)
+        lbl_ml_base = translate_text("ML Geomorphic Baseline:", target_lang)
+        lbl_rain_trig = translate_text("72h Rain Trigger Volume:", target_lang)
+        lbl_vol_sm = translate_text("Volumetric Soil Moisture:", target_lang)
         st.markdown(f"""
         <div style="font-size: 0.84rem; color: #94A3B8; background: rgba(255,255,255,0.02); padding: 0.8rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
-            <b>Model Contribution Breakdown:</b><br>
-            • ML Geomorphic Baseline: <code>{risk_a['ml_probability']}%</code> (Topography & Lithology)<br>
-            • 72h Rain Trigger Volume: <code>{triggers.get('rain_past_72h', 0):.1f} mm</code><br>
-            • Volumetric Soil Moisture: <code>{triggers.get('soil_moisture_top', 0.25):.3f} m³/m³</code>
+            <b>{lbl_breakdown}</b><br>
+            • {lbl_ml_base} <code>{risk_a['ml_probability']}%</code> (Topography & Lithology)<br>
+            • {lbl_rain_trig} <code>{triggers.get('rain_past_72h', 0):.1f} mm</code><br>
+            • {lbl_vol_sm} <code>{triggers.get('soil_moisture_top', 0.25):.3f} m³/m³</code>
         </div>
         """, unsafe_allow_html=True)
 
     # Forward 14-Day Trajectory
     st.markdown("---")
-    st.markdown("<div class='section-title'>14-Day Risk Trajectory & Precipitation Forecast</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='section-title'>{translate_text('14-Day Risk Trajectory & Precipitation Forecast', target_lang)}</div>", unsafe_allow_html=True)
     daily_df = weather_a.get("daily_df", None)
     if daily_df is not None and not daily_df.empty:
         forecast_probs = []
@@ -1124,14 +1167,14 @@ if app_mode == "Single Location Observatory":
     # Detailed Tabs
     st.markdown("---")
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "Risk Factor Attribution", 
-        "Subsurface Hydrology", 
-        "Emergency Protocols & SDMA",
-        "🔔 Automated Email Alerts",
-        "📸 Citizen / Field Geo-Reporting"
+        translate_text("Risk Factor Attribution", target_lang), 
+        translate_text("Subsurface Hydrology", target_lang), 
+        translate_text("Emergency Protocols & SDMA", target_lang),
+        translate_text("🔔 Automated Email Alerts", target_lang),
+        translate_text("📸 Citizen / Field Geo-Reporting", target_lang)
     ])
     with tab1:
-        st.markdown("##### Primary Drivers Influencing Current Assessment")
+        st.markdown(f"##### {translate_text('Primary Drivers Influencing Current Assessment', target_lang)}")
         driver_df = pd.DataFrame(risk_a["drivers"])
         dcol1, dcol2 = st.columns([3, 2])
         with dcol1:
@@ -1139,17 +1182,22 @@ if app_mode == "Single Location Observatory":
             bar_fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family="Plus Jakarta Sans", color="#94A3B8"), xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(showgrid=False), height=260, showlegend=False, margin=dict(l=10, r=20, t=10, b=10))
             st.plotly_chart(bar_fig, use_container_width=True)
         with dcol2:
+            lbl_litho = translate_text("Lithological & Terrain Overview:", target_lang)
+            lbl_geo_form = translate_text("Geological Formation:", target_lang)
+            lbl_crit_slope = translate_text("Critical Slope Threshold:", target_lang)
+            lbl_relief = translate_text("Relief Energy:", target_lang)
+            lbl_corr_notes = translate_text("Corridor Assessment:", target_lang)
             st.markdown(f"""
             <div style="font-size: 0.88rem; color: #CBD5E1; background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
-                <b>Lithological & Terrain Overview:</b><br>
-                • Geological Formation: <i>{loc_a['geology']}</i><br>
-                • Critical Slope Threshold: <b>{loc_a['slope']}°</b> (Instability threshold: > 35°)<br>
-                • Relief Energy: <b>{loc_a['elevation']:,} m a.s.l.</b><br>
-                • Corridor Assessment: {loc_a['notes']}
+                <b>{lbl_litho}</b><br>
+                • {lbl_geo_form} <i>{loc_a['geology']}</i><br>
+                • {lbl_crit_slope} <b>{loc_a['slope']}°</b> (Instability threshold: > 35°)<br>
+                • {lbl_relief} <b>{loc_a['elevation']:,} m a.s.l.</b><br>
+                • {lbl_corr_notes} {loc_a['notes']}
             </div>
             """, unsafe_allow_html=True)
     with tab2:
-        st.markdown("##### Multi-Horizon Subsurface Soil Moisture Distribution")
+        st.markdown(f"##### {translate_text('Multi-Horizon Subsurface Soil Moisture Distribution', target_lang)}")
         hourly_df = weather_a.get("hourly_df", None)
         if hourly_df is not None and not hourly_df.empty:
             latest = hourly_df.iloc[-1]
@@ -1197,30 +1245,31 @@ if app_mode == "Single Location Observatory":
             current_risk=risk_a,
             current_weather=weather_a,
             sdma_contact=sdma,
-            key_suffix="single"
+            key_suffix="single",
+            target_lang=target_lang
         )
     with tab5:
-        st.markdown("##### 📸 Real-Time Citizen & Ground Crew Landslide Reporting")
-        st.caption("Empower frontline patrols, village disaster volunteers, and motorists to capture and transmit geo-tagged photographic evidence directly to the active geospatial database.")
+        st.markdown(f"##### {translate_text('Real-Time Citizen & Ground Crew Landslide Reporting', target_lang)}")
+        st.caption(translate_text("Empower frontline patrols, village disaster volunteers, and motorists to capture and transmit geo-tagged photographic evidence directly to the active geospatial database.", target_lang))
 
         rf_col1, rf_col2 = st.columns([1, 1])
         with rf_col1:
-            st.markdown("**1. Capture or Upload Field Photo**")
-            cam_photo = st.camera_input("Take Live Ground Photo", key="citizen_cam_photo")
-            up_photo = st.file_uploader("Or Upload Existing Photo (JPG/PNG)", type=["jpg", "jpeg", "png"], key="citizen_up_photo")
+            st.markdown(f"**{translate_text('1. Capture or Upload Field Photo', target_lang)}**")
+            cam_photo = st.camera_input(translate_text("Take Live Ground Photo", target_lang), key="citizen_cam_photo")
+            up_photo = st.file_uploader(translate_text("Or Upload Existing Photo (JPG/PNG)", target_lang), type=["jpg", "jpeg", "png"], key="citizen_up_photo")
             active_photo = cam_photo if cam_photo is not None else up_photo
 
             if active_photo is not None:
                 st.image(active_photo, caption="Captured Field Imagery (Ready to transmit)", use_container_width=True)
 
         with rf_col2:
-            st.markdown("**2. Geolocation & Incident Telemetry**")
+            st.markdown(f"**{translate_text('2. Geolocation & Incident Telemetry', target_lang)}**")
             
             auto_lat = float(loc_a["lat"])
             auto_lon = float(loc_a["lon"])
             
             if HAS_GEOLOCATION:
-                st.caption("Acquire live browser GPS position:")
+                st.caption(translate_text("Acquire live browser GPS position:", target_lang))
                 gps_loc = streamlit_geolocation()
                 if gps_loc and gps_loc.get("latitude") is not None:
                     auto_lat = float(gps_loc["latitude"])
@@ -1229,16 +1278,16 @@ if app_mode == "Single Location Observatory":
             
             gcol1, gcol2 = st.columns(2)
             with gcol1:
-                rep_lat = st.number_input("Latitude °N", value=float(auto_lat), min_value=21.0, max_value=30.0, format="%.4f", key="rep_lat_in")
+                rep_lat = st.number_input(translate_text("Latitude °N", target_lang), value=float(auto_lat), min_value=21.0, max_value=30.0, format="%.4f", key="rep_lat_in")
             with gcol2:
-                rep_lon = st.number_input("Longitude °E", value=float(auto_lon), min_value=88.0, max_value=98.0, format="%.4f", key="rep_lon_in")
+                rep_lon = st.number_input(translate_text("Longitude °E", target_lang), value=float(auto_lon), min_value=88.0, max_value=98.0, format="%.4f", key="rep_lon_in")
 
-            rep_loc_name = st.text_input("Corridor / Landmark Name", value=f"{loc_a['title']} Vicinity", key="rep_loc_name")
-            rep_state = st.selectbox("State", NE_STATES, index=NE_STATES.index(loc_a["state"]) if loc_a["state"] in NE_STATES else 0, key="rep_state")
+            rep_loc_name = st.text_input(translate_text("Corridor / Landmark Name", target_lang), value=f"{loc_a['title']} Vicinity", key="rep_loc_name")
+            rep_state = st.selectbox(translate_text("State", target_lang), NE_STATES, index=NE_STATES.index(loc_a["state"]) if loc_a["state"] in NE_STATES else 0, key="rep_state")
             
             hcol1, hcol2 = st.columns(2)
             with hcol1:
-                rep_hazard = st.selectbox("Observed Hazard Type", [
+                rep_hazard = st.selectbox(translate_text("Observed Hazard Type", target_lang), [
                     "Active Debris Slide & Boulders",
                     "Escarpment Rockfall",
                     "Slope Subsidence & Sinking",
@@ -1247,17 +1296,17 @@ if app_mode == "Single Location Observatory":
                     "Toe-Erosion & Scarp Slump"
                 ], key="rep_hazard")
             with hcol2:
-                rep_sev = st.selectbox("Incident Severity", [
+                rep_sev = st.selectbox(translate_text("Incident Severity", target_lang), [
                     "Critical / Road Blockage",
                     "High Hazard",
                     "Moderate Slope Risk",
                     "Early Warning / Minor Cracks"
                 ], key="rep_sev")
 
-            rep_desc = st.text_area("Field Description & Road Status", placeholder="e.g. Boulders rolling across carriageway, culvert overflowing, traffic halted...", key="rep_desc")
-            rep_name = st.text_input("Reporter Name / Agency", value="Community Observer", key="rep_name")
+            rep_desc = st.text_area(translate_text("Field Description & Road Status", target_lang), placeholder="e.g. Boulders rolling across carriageway, culvert overflowing, traffic halted...", key="rep_desc")
+            rep_name = st.text_input(translate_text("Reporter Name / Agency", target_lang), value="Community Observer", key="rep_name")
 
-            if st.button("🚀 Transmit Geo-Tagged Field Report", type="primary", use_container_width=True, key="btn_submit_rep"):
+            if st.button(translate_text("🚀 Transmit Geo-Tagged Field Report", target_lang), type="primary", use_container_width=True, key="btn_submit_rep"):
                 img_bytes = active_photo.getvalue() if active_photo is not None else None
                 new_rec = save_citizen_report(
                     latitude=rep_lat,
@@ -1275,7 +1324,7 @@ if app_mode == "Single Location Observatory":
 
         # Feed of latest field reports
         st.markdown("---")
-        st.markdown("###### 📋 Recent Field Incidents Log (SQLite Database)")
+        st.markdown(f"###### 📋 {translate_text('Recent Field Incidents Log (SQLite Database)', target_lang)}")
         all_reps = get_all_citizen_reports()
         if all_reps:
             r_cols = st.columns(min(3, len(all_reps)))
@@ -1309,11 +1358,13 @@ else:
     col_h_left, col_h_mid, col_h_right = st.columns([5, 3.5, 3.5])
 
     with col_h_left:
-        st.markdown("<div class='main-title'>Dual Location Comparative Observatory</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='main-title'>{translate_text('Dual Location Comparative Observatory', target_lang)}</div>", unsafe_allow_html=True)
+        lbl_dist = translate_text("Geodetic Separation:", target_lang)
+        lbl_corr = translate_text("Corridor:", target_lang)
         st.markdown(f"""
         <div class='sub-title'>
-            Geodetic Separation: <b style="color: #38BDF8;">{deltas['distance_km']} km</b> &nbsp;|&nbsp; 
-            Corridor: <span class='pin-badge-a'>Pin A: {loc_a['title']}</span> ⇄ <span class='pin-badge-b'>Pin B: {loc_b['title']}</span>
+            {lbl_dist} <b style="color: #38BDF8;">{deltas['distance_km']} km</b> &nbsp;|&nbsp; 
+            {lbl_corr} <span class='pin-badge-a'>Pin A: {loc_a['title']}</span> ⇄ <span class='pin-badge-b'>Pin B: {loc_b['title']}</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1358,9 +1409,9 @@ else:
         
         c_exp1, c_exp2 = st.columns(2)
         with c_exp1:
-            st.download_button(label="PDF: Pin A", data=pdf_bytes_a, file_name=f"Report_PinA_{safe_a}.pdf", mime="application/pdf", use_container_width=True)
+            st.download_button(label=translate_text("PDF: Pin A", target_lang), data=pdf_bytes_a, file_name=f"Report_PinA_{safe_a}.pdf", mime="application/pdf", use_container_width=True)
         with c_exp2:
-            st.download_button(label="PDF: Pin B", data=pdf_bytes_b, file_name=f"Report_PinB_{safe_b}.pdf", mime="application/pdf", use_container_width=True)
+            st.download_button(label=translate_text("PDF: Pin B", target_lang), data=pdf_bytes_b, file_name=f"Report_PinB_{safe_b}.pdf", mime="application/pdf", use_container_width=True)
 
     # 2. Executive Comparative Delta Alert Callout
     # SAFETY / COMPLIANCE NOTE: Safety-critical disaster phrases should be regularly spot-checked
@@ -1403,7 +1454,7 @@ else:
         sign = "+" if deltas["prob_delta"] > 0 else ""
         st.markdown(f"""
         <div class="compare-card">
-            <div class="metric-label">Landslide Risk %</div>
+            <div class="metric-label">{translate_text("Landslide Risk %", target_lang)}</div>
             <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.2rem;">
                 <span style="font-size: 1.35rem; font-weight: 700; color: #38BDF8;">{risk_a['probability']}%</span>
                 <span style="font-size: 0.8rem; color: #94A3B8;">vs</span>
@@ -1422,7 +1473,7 @@ else:
         sign = "+" if delta_r24 > 0 else ""
         st.markdown(f"""
         <div class="compare-card">
-            <div class="metric-label">24h Rainfall Total</div>
+            <div class="metric-label">{translate_text("24h Rainfall Total", target_lang)}</div>
             <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.2rem;">
                 <span style="font-size: 1.35rem; font-weight: 700; color: #38BDF8;">{r24_a:.1f} <span style="font-size: 0.75rem;">mm</span></span>
                 <span style="font-size: 0.8rem; color: #94A3B8;">vs</span>
@@ -1441,7 +1492,7 @@ else:
         sign = "+" if delta_r72 > 0 else ""
         st.markdown(f"""
         <div class="compare-card">
-            <div class="metric-label">72h Antecedent Rain</div>
+            <div class="metric-label">{translate_text("72h Antecedent Rain", target_lang)}</div>
             <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.2rem;">
                 <span style="font-size: 1.35rem; font-weight: 700; color: #38BDF8;">{r72_a:.1f} <span style="font-size: 0.75rem;">mm</span></span>
                 <span style="font-size: 0.8rem; color: #94A3B8;">vs</span>
@@ -1460,7 +1511,7 @@ else:
         sign = "+" if delta_st > 0 else ""
         st.markdown(f"""
         <div class="compare-card">
-            <div class="metric-label">Topsoil Saturation (0-9cm)</div>
+            <div class="metric-label">{translate_text("Topsoil Saturation (0-9cm)", target_lang)}</div>
             <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.2rem;">
                 <span style="font-size: 1.35rem; font-weight: 700; color: #38BDF8;">{st_a:.1f}%</span>
                 <span style="font-size: 0.8rem; color: #94A3B8;">vs</span>
@@ -1479,7 +1530,7 @@ else:
         sign = "+" if delta_sd > 0 else ""
         st.markdown(f"""
         <div class="compare-card">
-            <div class="metric-label">Deep Subsoil (27-81cm)</div>
+            <div class="metric-label">{translate_text("Deep Subsoil (27-81cm)", target_lang)}</div>
             <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.2rem;">
                 <span style="font-size: 1.35rem; font-weight: 700; color: #38BDF8;">{sd_a:.1f}%</span>
                 <span style="font-size: 0.8rem; color: #94A3B8;">vs</span>
@@ -1504,17 +1555,17 @@ else:
     col_map_dual, col_gauges_dual = st.columns([3, 2])
 
     with col_map_dual:
-        st.markdown("<div class='section-title'>Dual-Station Regional Geospatial Map</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-title'>{translate_text('Dual-Station Regional Geospatial Map', target_lang)}</div>", unsafe_allow_html=True)
         
         m_ctrl1, m_ctrl2, m_ctrl3, m_ctrl4 = st.columns([2.8, 1.8, 2.0, 2.0])
         with m_ctrl1:
-            show_heatmap = st.checkbox("🔥 Risk Heatmap", value=True, key="dual_heatmap", help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
+            show_heatmap = st.checkbox(translate_text("🔥 Risk Heatmap", target_lang), value=True, key="dual_heatmap", help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
         with m_ctrl2:
-            show_markers = st.checkbox("Hotspot Pins", value=True, key="dual_markers", help="Toggle clickable regional hotspot markers")
+            show_markers = st.checkbox(translate_text("Hotspot Pins", target_lang), value=True, key="dual_markers", help="Toggle clickable regional hotspot markers")
         with m_ctrl3:
-            show_citizen_reports_dual = st.checkbox("📸 Field Reports", value=True, key="dual_field_reps", help="Toggle community & ground crew geo-tagged incident pins with photos")
+            show_citizen_reports_dual = st.checkbox(translate_text("📸 Field Reports", target_lang), value=True, key="dual_field_reps", help="Toggle community & ground crew geo-tagged incident pins with photos")
         with m_ctrl4:
-            heatmap_radius = st.slider("Blur Radius", min_value=14, max_value=42, value=24, step=2, key="dual_radius")
+            heatmap_radius = st.slider(translate_text("Blur Radius", target_lang), min_value=14, max_value=42, value=24, step=2, key="dual_radius")
 
         # Center map at midpoint between Pin A and Pin B
         mid_lat = (loc_a['lat'] + loc_b['lat']) / 2.0
@@ -1666,42 +1717,50 @@ else:
         folium.LayerControl(position="topright").add_to(m_dual)
         render_folium_map(m_dual, height=420)
 
+        lbl_field_inc = translate_text("Field Reports", target_lang)
+        lbl_geod_sep = translate_text("Geodetic Separation", target_lang)
         st.markdown(f"""
         <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.4rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
             <span style="color: #38BDF8;">● <b>Pin A:</b> {loc_a['title']}</span>
             <span style="color: #FB7185;">● <b>Pin B:</b> {loc_b['title']}</span>
-            <span style="color: #F97316;">📸 <b>Field Incidents:</b> {len(citizen_reports_dual)}</span>
-            <span style="color: #E2E8F0;">↔ Separation: <b>{deltas['distance_km']} km</b></span>
+            <span style="color: #F97316;">📸 <b>{lbl_field_inc}:</b> {len(citizen_reports_dual)}</span>
+            <span style="color: #E2E8F0;">↔ {lbl_geod_sep}: <b>{deltas['distance_km']} km</b></span>
         </div>
         """, unsafe_allow_html=True)
 
     with col_gauges_dual:
-        st.markdown("<div class='section-title'>Comparative Risk Probability Gauges</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-title'>{translate_text('Comparative Risk Probability Gauges', target_lang)}</div>", unsafe_allow_html=True)
         
         gcol1, gcol2 = st.columns(2)
+        lbl_risk_a = translate_text(f"{risk_a['classification']} Risk", target_lang)
+        lbl_risk_b = translate_text(f"{risk_b['classification']} Risk", target_lang)
         with gcol1:
             st.plotly_chart(
-                create_side_by_side_gauge(risk_a["probability"], loc_a['title'], risk_a["color"], risk_a["classification"]),
+                create_side_by_side_gauge(risk_a["probability"], loc_a['title'], risk_a["color"], lbl_risk_a),
                 use_container_width=True
             )
         with gcol2:
             st.plotly_chart(
-                create_side_by_side_gauge(risk_b["probability"], loc_b['title'], risk_b["color"], risk_b["classification"]),
+                create_side_by_side_gauge(risk_b["probability"], loc_b['title'], risk_b["color"], lbl_risk_b),
                 use_container_width=True
             )
 
+        lbl_mcomp = translate_text("Model Driver Comparison:", target_lang)
+        lbl_geo_base = translate_text("ML Geomorphic Baseline:", target_lang)
+        lbl_rain_stress = translate_text("72h Rainfall Stress:", target_lang)
+        lbl_soil_moist = translate_text("Topsoil Moisture:", target_lang)
         st.markdown(f"""
         <div style="font-size: 0.83rem; color: #CBD5E1; background: rgba(255,255,255,0.02); padding: 0.85rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
-            <b>Model Driver Comparison:</b><br>
-            • <b>ML Geomorphic Baseline:</b> Pin A <code>{risk_a['ml_probability']}%</code> vs Pin B <code>{risk_b['ml_probability']}%</code><br>
-            • <b>72h Rainfall Stress:</b> Pin A <code>{trig_a.get('rain_past_72h', 0):.1f} mm</code> vs Pin B <code>{trig_b.get('rain_past_72h', 0):.1f} mm</code><br>
-            • <b>Topsoil Moisture:</b> Pin A <code>{trig_a.get('soil_moisture_top', 0.25):.3f} m³/m³</code> vs Pin B <code>{trig_b.get('soil_moisture_top', 0.25):.3f} m³/m³</code>
+            <b>{lbl_mcomp}</b><br>
+            • <b>{lbl_geo_base}</b> Pin A <code>{risk_a['ml_probability']}%</code> vs Pin B <code>{risk_b['ml_probability']}%</code><br>
+            • <b>{lbl_rain_stress}</b> Pin A <code>{trig_a.get('rain_past_72h', 0):.1f} mm</code> vs Pin B <code>{trig_b.get('rain_past_72h', 0):.1f} mm</code><br>
+            • <b>{lbl_soil_moist}</b> Pin A <code>{trig_a.get('soil_moisture_top', 0.25):.3f} m³/m³</code> vs Pin B <code>{trig_b.get('soil_moisture_top', 0.25):.3f} m³/m³</code>
         </div>
         """, unsafe_allow_html=True)
 
     # 5. Side-by-Side Soil Moisture Levels
     st.markdown("---")
-    st.markdown("<div class='section-title'>Multi-Horizon Subsurface Soil Moisture Comparison</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='section-title'>{translate_text('Multi-Horizon Subsurface Soil Moisture Comparison', target_lang)}</div>", unsafe_allow_html=True)
     st.caption("Volumetric moisture content (m³/m³) across 5 stratigraphic horizons compared to the 0.40 m³/m³ liquefaction instability threshold.")
     st.plotly_chart(
         create_comparative_soil_moisture_chart(weather_a, weather_b, loc_a['title'], loc_b['title']),
@@ -1710,7 +1769,7 @@ else:
 
     # 6. Forward 14-Day Trajectory Comparison
     st.markdown("---")
-    st.markdown("<div class='section-title'>14-Day Comparative Forward Precipitation & Risk Trajectory</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='section-title'>{translate_text('14-Day Comparative Forward Precipitation & Risk Trajectory', target_lang)}</div>", unsafe_allow_html=True)
     st.caption("Simultaneous daily precipitation forecasts (bars) and projected dynamic landslide failure probabilities (curves).")
     st.plotly_chart(
         create_comparative_forecast_chart(weather_a, weather_b, risk_a, risk_b, loc_a['title'], loc_b['title']),
@@ -1720,16 +1779,16 @@ else:
     # 7. Detailed Comparison Tabs
     st.markdown("---")
     dtab1, dtab2, dtab3, dtab4, dtab5 = st.tabs([
-        "Side-by-Side Risk Drivers",
-        "Geomorphic & Terrain Matrix",
-        "Weather Triggers Breakdown",
-        "Emergency Contacts & SDMA",
-        "🔔 Automated Email Alerts"
+        translate_text("Side-by-Side Risk Drivers", target_lang),
+        translate_text("Geomorphic & Terrain Matrix", target_lang),
+        translate_text("Weather Triggers Breakdown", target_lang),
+        translate_text("Emergency Contacts & SDMA", target_lang),
+        translate_text("🔔 Automated Email Alerts", target_lang)
     ])
 
 
     with dtab1:
-        st.markdown("##### Primary Hazard Contributing Factors Comparison")
+        st.markdown(f"##### {translate_text('Primary Hazard Contributing Factors Comparison', target_lang)}")
         dr_col1, dr_col2 = st.columns(2)
         
         with dr_col1:
@@ -1755,7 +1814,7 @@ else:
             st.plotly_chart(bar_fig_b, use_container_width=True)
 
     with dtab2:
-        st.markdown("##### Comprehensive Terrain & Geomorphic Profile Matrix")
+        st.markdown(f"##### {translate_text('Comprehensive Terrain & Geomorphic Profile Matrix', target_lang)}")
         matrix_data = {
             "Geomorphic Attribute": [
                 "Target District / Corridor",
@@ -1817,7 +1876,7 @@ else:
         st.dataframe(pd.DataFrame(matrix_data), use_container_width=True, hide_index=True)
 
     with dtab3:
-        st.markdown("##### Detailed Meteorological & Hydrological Telemetry Breakdown")
+        st.markdown(f"##### {translate_text('Detailed Meteorological & Hydrological Telemetry Breakdown', target_lang)}")
         weather_table_data = {
             "Meteorological Parameter": [
                 "Current Surface Temperature",
@@ -1916,7 +1975,8 @@ else:
             current_risk=risk_a,
             current_weather=weather_a,
             sdma_contact=sdma_a,
-            key_suffix="dual"
+            key_suffix="dual",
+            target_lang=target_lang
         )
 
 
@@ -1924,4 +1984,4 @@ else:
 # FOOTER
 # -----------------------------------------------------------------------------
 st.markdown("---")
-st.caption("North Eastern Region Landslide Early Warning System | Dual-Station Satellite Telemetry (Open-Meteo) | LightGBM ML Geomorphic Engine | Developed for Scientific Disaster Risk Reduction")
+st.caption(translate_text("North Eastern Region Landslide Early Warning System | Dual-Station Satellite Telemetry (Open-Meteo) | LightGBM ML Geomorphic Engine | Developed for Scientific Disaster Risk Reduction", target_lang))
