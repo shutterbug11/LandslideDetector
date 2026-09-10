@@ -21,6 +21,7 @@ ENV/
 
 # Cache directories & DBs
 .cache/
+cache/
 *.cache
 *.sqlite
 *.db

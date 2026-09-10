@@ -53,6 +53,11 @@ from utils.citizen_reporting_service import (
     get_photo_data_uri,
     get_severity_badge_color
 )
+from utils.roads import (
+    get_hotspot_roads,
+    mark_blocked_edges,
+    sanitize_edges_for_folium
+)
 try:
     from streamlit_geolocation import streamlit_geolocation
     HAS_GEOLOCATION = True
@@ -959,7 +964,7 @@ if app_mode == "Single Location Observatory":
     col_map, col_gauge = st.columns([3, 2])
     with col_map:
         st.markdown(f"<div class='section-title'>{translate_text('Regional Hazard & Susceptibility Map', target_lang)}</div>", unsafe_allow_html=True)
-        m_ctrl1, m_ctrl2, m_ctrl3, m_ctrl4 = st.columns([2.8, 1.8, 2.0, 2.0])
+        m_ctrl1, m_ctrl2, m_ctrl3, m_ctrl4, m_ctrl5 = st.columns([2.2, 1.8, 1.8, 1.9, 1.8])
         with m_ctrl1:
             show_heatmap = st.checkbox(translate_text("🔥 Risk Heatmap", target_lang), value=True, help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
         with m_ctrl2:
@@ -967,6 +972,8 @@ if app_mode == "Single Location Observatory":
         with m_ctrl3:
             show_citizen_reports = st.checkbox(translate_text("📸 Field Reports", target_lang), value=True, help="Toggle community & ground crew geo-tagged incident pins with photos")
         with m_ctrl4:
+            show_roads = st.checkbox(translate_text("🛣️ Road Risk", target_lang), value=True, help="Local drivable road network within 5km, highlighting segments intersecting active 2km risk buffer and citizen-reported blockages")
+        with m_ctrl5:
             heatmap_radius = st.slider(translate_text("Blur Radius", target_lang), min_value=14, max_value=42, value=24, step=2)
 
         m = folium.Map(location=[26.1, 92.9], zoom_start=7, tiles="CartoDB positron", control_scale=True)
@@ -1077,6 +1084,52 @@ if app_mode == "Single Location Observatory":
                 ).add_to(citizen_fg)
             citizen_fg.add_to(m)
 
+        # 6. Overlay Local Road & Infrastructure Risk Network Layer (OSMnx)
+        if show_roads:
+            try:
+                r_graph, r_edges = get_hotspot_roads(loc_a['lat'], loc_a['lon'], radius_m=5000)
+                if r_edges is not None and len(r_edges) > 0:
+                    # Adapt citizen reports for blocked road marking
+                    road_reports = [
+                        {
+                            "lat": cr.get("latitude", cr.get("lat")),
+                            "lon": cr.get("longitude", cr.get("lon")),
+                            "report_type": "blocked_road" if (
+                                cr.get("report_type") == "blocked_road"
+                                or "road blockage" in str(cr.get("severity", "")).lower()
+                                or "debris flow blockage" in str(cr.get("description", "")).lower()
+                                or "blocked" in str(cr.get("description", "")).lower()
+                            ) else cr.get("report_type", "hazard")
+                        }
+                        for cr in (citizen_reports or [])
+                    ]
+                    r_edges = mark_blocked_edges(r_edges, r_graph, road_reports)
+                    clean_edges = sanitize_edges_for_folium(r_edges)
+
+                    def road_style_fn(props):
+                        if props.get("blocked"):
+                            return {"color": "#EF4444", "weight": 4.5, "opacity": 0.95}
+                        elif props.get("at_risk"):
+                            return {"color": "#F97316", "weight": 3.5, "opacity": 0.85}
+                        else:
+                            return {"color": "#64748B", "weight": 2.0, "opacity": 0.60}
+
+                    roads_fg = folium.FeatureGroup(name=f"🛣️ Road Infrastructure Risk ({loc_a['title']})", show=True)
+                    folium.GeoJson(
+                        clean_edges,
+                        style_function=lambda f: road_style_fn(f["properties"]),
+                        tooltip=folium.GeoJsonTooltip(
+                            fields=["name", "highway", "at_risk", "blocked"],
+                            aliases=["Road:", "Type:", "In 2km Risk Zone:", "Blocked:"],
+                            localize=True
+                        ),
+                        name="Road risk layer"
+                    ).add_to(roads_fg)
+                    roads_fg.add_to(m)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Could not render road risk layer: {e}")
+
         folium.LayerControl(position="topright").add_to(m)
         render_folium_map(m, height=420)
 
@@ -1086,15 +1139,22 @@ if app_mode == "Single Location Observatory":
         lbl_high = translate_text("High Risk", target_lang)
         lbl_target = translate_text("Target Location", target_lang)
         lbl_reps = translate_text("Field Reports", target_lang)
+        lbl_road_norm = translate_text("Normal Road", target_lang)
+        lbl_road_risk = translate_text("At-Risk (2km)", target_lang)
+        lbl_road_blk = translate_text("Blocked Road", target_lang)
 
         st.markdown(f"""
-        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.45rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.45rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
             <span>🔥 <b>{lbl_heat}:</b></span>
             <span style="color: #10B981;">● {lbl_low} (&lt;35%)</span>
             <span style="color: #F59E0B;">● {lbl_med} (35-70%)</span>
             <span style="color: #EF4444;">● {lbl_high} (&gt;70%)</span>
             <span style="color: #38BDF8;">● {lbl_target}</span>
             <span style="color: #F97316;">📸 {lbl_reps} ({len(citizen_reports)})</span>
+            <span style="color: #94A3B8;">&nbsp;|&nbsp; 🛣️ <b>Roads:</b></span>
+            <span style="color: #94A3B8;"><b style="color:#64748B;">━</b> {lbl_road_norm}</span>
+            <span style="color: #F97316;"><b>━</b> {lbl_road_risk}</span>
+            <span style="color: #EF4444;"><b>━</b> {lbl_road_blk}</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1557,7 +1617,7 @@ else:
     with col_map_dual:
         st.markdown(f"<div class='section-title'>{translate_text('Dual-Station Regional Geospatial Map', target_lang)}</div>", unsafe_allow_html=True)
         
-        m_ctrl1, m_ctrl2, m_ctrl3, m_ctrl4 = st.columns([2.8, 1.8, 2.0, 2.0])
+        m_ctrl1, m_ctrl2, m_ctrl3, m_ctrl4, m_ctrl5 = st.columns([2.2, 1.8, 1.8, 1.9, 1.8])
         with m_ctrl1:
             show_heatmap = st.checkbox(translate_text("🔥 Risk Heatmap", target_lang), value=True, key="dual_heatmap", help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
         with m_ctrl2:
@@ -1565,6 +1625,8 @@ else:
         with m_ctrl3:
             show_citizen_reports_dual = st.checkbox(translate_text("📸 Field Reports", target_lang), value=True, key="dual_field_reps", help="Toggle community & ground crew geo-tagged incident pins with photos")
         with m_ctrl4:
+            show_roads_dual = st.checkbox(translate_text("🛣️ Road Risk", target_lang), value=True, key="dual_roads", help="Local drivable road network within 5km of corridor pins, color-coded by landslide risk & blockages")
+        with m_ctrl5:
             heatmap_radius = st.slider(translate_text("Blur Radius", target_lang), min_value=14, max_value=42, value=24, step=2, key="dual_radius")
 
         # Center map at midpoint between Pin A and Pin B
@@ -1714,17 +1776,88 @@ else:
                 ).add_to(citizen_fg_dual)
             citizen_fg_dual.add_to(m_dual)
 
+        # 7. Overlay Road Infrastructure Risk for Pin A & Pin B (OSMnx)
+        if show_roads_dual:
+            try:
+                road_reports_dual = [
+                    {
+                        "lat": cr.get("latitude", cr.get("lat")),
+                        "lon": cr.get("longitude", cr.get("lon")),
+                        "report_type": "blocked_road" if (
+                            cr.get("report_type") == "blocked_road"
+                            or "road blockage" in str(cr.get("severity", "")).lower()
+                            or "debris flow blockage" in str(cr.get("description", "")).lower()
+                            or "blocked" in str(cr.get("description", "")).lower()
+                        ) else cr.get("report_type", "hazard")
+                    }
+                    for cr in (citizen_reports_dual or [])
+                ]
+
+                def dual_road_style_fn(props):
+                    if props.get("blocked"):
+                        return {"color": "#EF4444", "weight": 4.5, "opacity": 0.95}
+                    elif props.get("at_risk"):
+                        return {"color": "#F97316", "weight": 3.5, "opacity": 0.85}
+                    else:
+                        return {"color": "#64748B", "weight": 2.0, "opacity": 0.60}
+
+                # Pin A Road Network
+                ga, ea = get_hotspot_roads(loc_a['lat'], loc_a['lon'], radius_m=5000)
+                if ea is not None and len(ea) > 0:
+                    ea = mark_blocked_edges(ea, ga, road_reports_dual)
+                    clean_ea = sanitize_edges_for_folium(ea)
+                    rfg_a = folium.FeatureGroup(name=f"🛣️ Roads: Pin A ({loc_a['title']})", show=True)
+                    folium.GeoJson(
+                        clean_ea,
+                        style_function=lambda f: dual_road_style_fn(f["properties"]),
+                        tooltip=folium.GeoJsonTooltip(
+                            fields=["name", "highway", "at_risk", "blocked"],
+                            aliases=["Road:", "Type:", "In 2km Risk Zone:", "Blocked:"],
+                            localize=True
+                        ),
+                        name=f"Roads {loc_a['title']}"
+                    ).add_to(rfg_a)
+                    rfg_a.add_to(m_dual)
+
+                # Pin B Road Network
+                gb, eb = get_hotspot_roads(loc_b['lat'], loc_b['lon'], radius_m=5000)
+                if eb is not None and len(eb) > 0:
+                    eb = mark_blocked_edges(eb, gb, road_reports_dual)
+                    clean_eb = sanitize_edges_for_folium(eb)
+                    rfg_b = folium.FeatureGroup(name=f"🛣️ Roads: Pin B ({loc_b['title']})", show=True)
+                    folium.GeoJson(
+                        clean_eb,
+                        style_function=lambda f: dual_road_style_fn(f["properties"]),
+                        tooltip=folium.GeoJsonTooltip(
+                            fields=["name", "highway", "at_risk", "blocked"],
+                            aliases=["Road:", "Type:", "In 2km Risk Zone:", "Blocked:"],
+                            localize=True
+                        ),
+                        name=f"Roads {loc_b['title']}"
+                    ).add_to(rfg_b)
+                    rfg_b.add_to(m_dual)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Failed to render dual road risk layers: {e}")
+
         folium.LayerControl(position="topright").add_to(m_dual)
         render_folium_map(m_dual, height=420)
 
         lbl_field_inc = translate_text("Field Reports", target_lang)
         lbl_geod_sep = translate_text("Geodetic Separation", target_lang)
+        lbl_road_norm = translate_text("Normal Road", target_lang)
+        lbl_road_risk = translate_text("At-Risk (2km)", target_lang)
+        lbl_road_blk = translate_text("Blocked Road", target_lang)
         st.markdown(f"""
-        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.4rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.4rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
             <span style="color: #38BDF8;">● <b>Pin A:</b> {loc_a['title']}</span>
             <span style="color: #FB7185;">● <b>Pin B:</b> {loc_b['title']}</span>
             <span style="color: #F97316;">📸 <b>{lbl_field_inc}:</b> {len(citizen_reports_dual)}</span>
             <span style="color: #E2E8F0;">↔ {lbl_geod_sep}: <b>{deltas['distance_km']} km</b></span>
+            <span style="color: #94A3B8;">&nbsp;|&nbsp; 🛣️ <b>Roads:</b></span>
+            <span style="color: #94A3B8;"><b style="color:#64748B;">━</b> {lbl_road_norm}</span>
+            <span style="color: #F97316;"><b>━</b> {lbl_road_risk}</span>
+            <span style="color: #EF4444;"><b>━</b> {lbl_road_blk}</span>
         </div>
         """, unsafe_allow_html=True)
 
