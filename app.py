@@ -58,6 +58,11 @@ from utils.roads import (
     mark_blocked_edges,
     sanitize_edges_for_folium
 )
+from population import (
+    get_exposed_population,
+    calculate_hotspot_prioritization,
+    render_population_prioritization_section
+)
 try:
     from streamlit_geolocation import streamlit_geolocation
     HAS_GEOLOCATION = True
@@ -109,57 +114,62 @@ def render_landing():
 # CUSTOM PROFESSIONAL CSS STYLING
 # -----------------------------------------------------------------------------
 st.markdown("""
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
     
     html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        color: #0F172A;
     }
     
     /* Header Typography */
     .main-title {
+        font-family: 'Plus Jakarta Sans', sans-serif;
         font-size: 2.15rem;
         font-weight: 700;
+        color: #0F172A;
         letter-spacing: -0.025em;
         margin-bottom: 0.25rem;
         line-height: 1.2;
     }
     .sub-title {
         font-size: 0.92rem;
-        color: #94A3B8;
+        color: #475569;
         margin-bottom: 1.35rem;
         font-weight: 400;
         line-height: 1.5;
     }
     
-    /* Professional Card System */
+    /* Institutional Card System */
     .card {
-        background: rgba(128, 128, 128, 0.06);
-        border: 1px solid rgba(128, 128, 128, 0.16);
-        border-radius: 10px;
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 6px;
         padding: 1.15rem 1.25rem;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
         margin-bottom: 0.75rem;
-        transition: all 0.2s ease-in-out;
+        transition: border-color 0.15s ease-in-out;
     }
     .card:hover {
-        border-color: rgba(128, 128, 128, 0.32);
-        background: rgba(128, 128, 128, 0.10);
+        border-color: #CBD5E1;
     }
     
     .metric-value {
+        font-family: 'Plus Jakarta Sans', sans-serif;
         font-size: 1.75rem;
         font-weight: 700;
+        color: #0F172A;
         letter-spacing: -0.025em;
         line-height: 1.2;
         margin-top: 0.2rem;
     }
     .metric-label {
-        font-size: 0.72rem;
+        font-size: 0.74rem;
         font-weight: 600;
-        color: #94A3B8;
+        color: #475569;
         text-transform: uppercase;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.06em;
     }
     .metric-sub {
         font-size: 0.76rem;
@@ -172,11 +182,11 @@ st.markdown("""
         display: inline-flex;
         align-items: center;
         gap: 0.35rem;
-        background: rgba(2, 132, 199, 0.18);
-        color: #38BDF8;
-        border: 1px solid rgba(56, 189, 248, 0.45);
+        background: #F1F5F9;
+        color: #1B4965;
+        border: 1px solid #CBD5E1;
         padding: 0.25rem 0.65rem;
-        border-radius: 6px;
+        border-radius: 4px;
         font-size: 0.75rem;
         font-weight: 700;
         letter-spacing: 0.05em;
@@ -186,11 +196,11 @@ st.markdown("""
         display: inline-flex;
         align-items: center;
         gap: 0.35rem;
-        background: rgba(244, 63, 94, 0.18);
-        color: #FB7185;
-        border: 1px solid rgba(251, 113, 133, 0.45);
+        background: #FDF2F2;
+        color: #991B1B;
+        border: 1px solid #FECACA;
         padding: 0.25rem 0.65rem;
-        border-radius: 6px;
+        border-radius: 4px;
         font-size: 0.75rem;
         font-weight: 700;
         letter-spacing: 0.05em;
@@ -198,64 +208,64 @@ st.markdown("""
     }
     
     .compare-card {
-        background: rgba(128, 128, 128, 0.05);
-        border: 1px solid rgba(128, 128, 128, 0.18);
-        border-radius: 10px;
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 6px;
         padding: 1.1rem 1.25rem;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
         margin-bottom: 0.75rem;
     }
     
     .compare-delta-pill {
         display: inline-block;
-        padding: 0.15rem 0.5rem;
-        border-radius: 9999px;
+        padding: 0.2rem 0.6rem;
+        border-radius: 4px;
         font-size: 0.72rem;
         font-weight: 700;
         margin-top: 0.35rem;
     }
     .delta-higher {
-        background: rgba(239, 68, 68, 0.18);
-        color: #EF4444;
-        border: 1px solid rgba(239, 68, 68, 0.35);
+        background: #FEF2F2;
+        color: #B91C1C;
+        border: 1px solid #FECACA;
     }
     .delta-lower {
-        background: rgba(16, 185, 129, 0.18);
-        color: #10B981;
-        border: 1px solid rgba(16, 185, 129, 0.35);
+        background: #F0FDF4;
+        color: #15803D;
+        border: 1px solid #BBF7D0;
     }
     .delta-neutral {
-        background: rgba(148, 163, 184, 0.15);
-        color: #94A3B8;
-        border: 1px solid rgba(148, 163, 184, 0.3);
+        background: #F1F5F9;
+        color: #475569;
+        border: 1px solid #CBD5E1;
     }
     
-    /* Status Pills */
+    /* Institutional Status Badges (Hazard Colors Reserved Strictly for Risk) */
     .status-pill {
         display: inline-flex;
         align-items: center;
         gap: 0.5rem;
-        padding: 0.4rem 1rem;
-        border-radius: 9999px;
-        font-size: 0.82rem;
+        padding: 0.35rem 0.85rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
         font-weight: 700;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
     }
     .status-low {
-        background: rgba(16, 185, 129, 0.12);
-        color: #10B981;
-        border: 1px solid rgba(16, 185, 129, 0.32);
+        background: #F0FDF4;
+        color: #15803D;
+        border: 1px solid #BBF7D0;
     }
     .status-medium {
-        background: rgba(245, 158, 11, 0.12);
-        color: #F59E0B;
-        border: 1px solid rgba(245, 158, 11, 0.32);
+        background: #FFFBEB;
+        color: #B45309;
+        border: 1px solid #FDE68A;
     }
     .status-high {
-        background: rgba(239, 68, 68, 0.15);
-        color: #EF4444;
-        border: 1px solid rgba(239, 68, 68, 0.4);
+        background: #FEF2F2;
+        color: #B91C1C;
+        border: 1px solid #FECACA;
     }
     .status-dot {
         width: 8px;
@@ -263,34 +273,61 @@ st.markdown("""
         border-radius: 50%;
         display: inline-block;
     }
-    .dot-low { background-color: #10B981; box-shadow: 0 0 8px #10B981; }
-    .dot-medium { background-color: #F59E0B; box-shadow: 0 0 8px #F59E0B; }
-    .dot-high { background-color: #EF4444; box-shadow: 0 0 10px #EF4444; }
+    .dot-low { background-color: #15803D; }
+    .dot-medium { background-color: #B45309; }
+    .dot-high { background-color: #B91C1C; }
 
-    /* Download Report Button Styling */
+    /* Button Styling */
+    div[data-testid="stButton"] button[kind="primary"] {
+        background: #1B4965 !important;
+        border: 1px solid #1B4965 !important;
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+        border-radius: 6px !important;
+        padding: 0.5rem 1.25rem !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+        transition: background-color 0.15s ease-in-out !important;
+    }
+    div[data-testid="stButton"] button[kind="primary"]:hover {
+        background: #13374D !important;
+        border-color: #13374D !important;
+    }
+
+    div[data-testid="stButton"] button:not([kind="primary"]) {
+        background: #FFFFFF !important;
+        border: 1px solid #CBD5E1 !important;
+        color: #1E293B !important;
+        font-weight: 600 !important;
+        border-radius: 6px !important;
+        transition: all 0.15s ease-in-out !important;
+    }
+    div[data-testid="stButton"] button:not([kind="primary"]):hover {
+        background: #F8FAFC !important;
+        border-color: #1B4965 !important;
+        color: #1B4965 !important;
+    }
+
     .stDownloadButton button {
-        background: rgba(128, 128, 128, 0.08) !important;
-        border: 1px solid rgba(128, 128, 128, 0.25) !important;
-        color: var(--text-color, #F8FAFC) !important;
+        background: #FFFFFF !important;
+        border: 1px solid #CBD5E1 !important;
+        color: #1B4965 !important;
         font-weight: 600 !important;
         font-size: 0.82rem !important;
-        letter-spacing: 0.02em !important;
-        border-radius: 8px !important;
+        border-radius: 6px !important;
         padding: 0.42rem 0.9rem !important;
-        transition: all 0.2s ease-in-out !important;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+        transition: all 0.15s ease-in-out !important;
     }
     .stDownloadButton button:hover {
-        background: rgba(2, 132, 199, 0.15) !important;
-        border-color: #0284C7 !important;
-        color: #0284C7 !important;
-        transform: translateY(-1px) !important;
+        background: #F1F5F9 !important;
+        border-color: #1B4965 !important;
     }
 
     /* Section Headings */
     .section-title {
+        font-family: 'Plus Jakarta Sans', sans-serif;
         font-size: 1.15rem;
-        font-weight: 600;
+        font-weight: 700;
+        color: #0F172A;
         letter-spacing: -0.015em;
         margin-bottom: 0.8rem;
         display: flex;
@@ -301,19 +338,21 @@ st.markdown("""
     /* System Header Banner in Sidebar */
     .sidebar-header {
         padding: 0.4rem 0 1rem 0;
-        border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+        border-bottom: 1px solid #E2E8F0;
         margin-bottom: 1rem;
     }
     .sidebar-agency {
-        font-size: 0.68rem;
+        font-size: 0.7rem;
         text-transform: uppercase;
-        letter-spacing: 0.12em;
-        color: #0284C7;
+        letter-spacing: 0.08em;
+        color: #1B4965;
         font-weight: 700;
     }
     .sidebar-title {
-        font-size: 1.22rem;
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 1.2rem;
         font-weight: 700;
+        color: #0F172A;
         letter-spacing: -0.02em;
         margin-top: 0.25rem;
     }
@@ -553,7 +592,7 @@ def render_email_alert_subscription_card(
 
         st.caption(f"Configured policy: Trigger alert when predicted failure probability in **{sel_region}** breaches **{threshold_val:.0f}%**.")
 
-        if st.button(translate_text("🔔 Subscribe to Early Warning Alerts", target_lang), key=f"btn_subscribe_{key_suffix}", use_container_width=True):
+        if st.button(translate_text("Subscribe to Early Warning Alerts", target_lang), key=f"btn_subscribe_{key_suffix}", use_container_width=True):
             if not sub_email:
                 st.error("Please provide an email address before subscribing.")
             elif not validate_email_address(sub_email):
@@ -562,7 +601,7 @@ def render_email_alert_subscription_card(
                 res = add_subscriber(sub_email, sel_state, sel_region, threshold=threshold_val)
                 if res.get("status") == "success":
                     st.success(res.get("message"))
-                    st.toast(f"Enrolled {sub_email} for alerts in {sel_region}!", icon="✅")
+                    st.toast(f"Enrolled {sub_email} for alerts in {sel_region}!")
                 else:
                     st.error(res.get("message"))
 
@@ -580,7 +619,7 @@ def render_email_alert_subscription_card(
             key=f"test_email_input_{key_suffix}"
         )
 
-        if st.button(translate_text("📨 Send Immediate Test Alert Email", target_lang), key=f"btn_test_dispatch_{key_suffix}", use_container_width=True):
+        if st.button(translate_text("Send Immediate Test Alert Email", target_lang), key=f"btn_test_dispatch_{key_suffix}", use_container_width=True):
             if not test_email_input:
                 st.error("Please specify a recipient email address for the test.")
             elif not validate_email_address(test_email_input):
@@ -598,8 +637,8 @@ def render_email_alert_subscription_card(
                 if test_res.get("status") == "success":
                     st.success(f"**Dispatched Successfully!** Check `{test_email_input}` inbox.")
                     st.markdown(f"""
-                    <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); border-radius: 8px; padding: 0.85rem 1rem; margin-top: 0.5rem; font-size: 0.82rem; color: #E2E8F0;">
-                        <b>Deliverability Health:</b> <span style="color: #34D399; font-weight: 700;">{test_res.get('deliverability_score', 100)} / 100 ({test_res.get('deliverability_status', 'Optimal')})</span><br>
+                    <div style="background: rgba(21, 128, 61, 0.08); border: 1px solid rgba(21, 128, 61, 0.25); border-radius: 4px; padding: 0.85rem 1rem; margin-top: 0.5rem; font-size: 0.82rem; color: #0F172A;">
+                        <b>Deliverability Health:</b> <span style="color: #15803D; font-weight: 700;">{test_res.get('deliverability_score', 100)} / 100 ({test_res.get('deliverability_status', 'Optimal')})</span><br>
                         • RFC 8058 One-Click List-Unsubscribe Header: <b>Active</b><br>
                         • Bayesian Spam Word Density: <b>0% (Clean)</b><br>
                         • Dual MIME Alignment: <b>text/plain + accessible HTML</b>
@@ -620,8 +659,8 @@ def render_email_alert_subscription_card(
         lbl_rfc = translate_text("RFC 8058 Compliant:", target_lang)
         lbl_track = translate_text("No Tracking Anchors:", target_lang)
         st.markdown(f"""
-        <div style="background: rgba(128, 128, 128, 0.05); border: 1px solid rgba(128, 128, 128, 0.16); border-radius: 8px; padding: 0.85rem 1rem; margin-top: 0.75rem; font-size: 0.8rem; color: #94A3B8; line-height: 1.5;">
-            <b style="color: #CBD5E1;">{lbl_why_spam}</b><br>
+        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 4px; padding: 0.85rem 1rem; margin-top: 0.75rem; font-size: 0.8rem; color: #475569; line-height: 1.5;">
+            <b style="color: #0F172A;">{lbl_why_spam}</b><br>
             • <b>{lbl_panic}</b> 100+ aggressive urgency terms (e.g., "URGENT", "ACT NOW") eliminated in favor of official scientific phrasing.<br>
             • <b>{lbl_rfc}</b> Includes one-click unsubscribe headers mandated by Google & Yahoo 2024 Bulk Sender rules.<br>
             • <b>{lbl_track}</b> Direct, transparent links with no third-party URL shorteners or deceptive redirects.
@@ -635,7 +674,7 @@ def render_email_alert_subscription_card(
     exp1, exp2 = st.columns(2)
 
     with exp1:
-        with st.expander(f"📖 {translate_text('Gmail Spam Prevention Knowledge Base & Standards', target_lang)}", expanded=False):
+        with st.expander(translate_text("Gmail Spam Prevention Knowledge Base & Standards", target_lang), expanded=False):
             st.markdown("""
             **Gmail Bayesian Filter Standards Applied in GroundCheck:**
             
@@ -651,7 +690,7 @@ def render_email_alert_subscription_card(
             """)
 
     with exp2:
-        with st.expander(f"📋 {translate_text('Manage Active Subscriptions & Opt-Out', target_lang)}", expanded=False):
+        with st.expander(translate_text("Manage Active Subscriptions & Opt-Out", target_lang), expanded=False):
             all_subs = load_subscribers()
             lbl_tot_sub = translate_text("Total Registered Subscribers:", target_lang)
             st.markdown(f"**{lbl_tot_sub}** `{len(all_subs)}`")
@@ -694,13 +733,13 @@ elif st.session_state.page == "dashboard":
     # SIDEBAR CONTROLS & WORKFLOW MODE
     # -----------------------------------------------------------------------------
     with st.sidebar:
-        if st.button("⬅️ Return to Overview", key="btn_nav_home", use_container_width=True, help="Return to the GroundCheck welcome landing page"):
+        if st.button("Return to Overview", key="btn_nav_home", use_container_width=True, help="Return to the GroundCheck welcome landing page"):
             st.session_state.page = "landing"
             st.rerun()
         st.markdown("<div style='margin-bottom: 0.35rem;'></div>", unsafe_allow_html=True)
         # Multilingual Support (AI4Bharat IndicTrans2)
         selected_lang_label = st.selectbox(
-            "🌐 Language / ভাষা",
+            "Language / ভাষা",
             options=list(LANG_OPTIONS.keys()),
             index=0,
             help="Translate risk alerts, emergency instructions, and weather telemetry summaries into regional Indic languages."
@@ -777,7 +816,7 @@ elif st.session_state.page == "dashboard":
         * **{adv_high}**
         """)
 
-        with st.expander(f"🔔 {translate_text('Resident Alert Registry', target_lang)}", expanded=False):
+        with st.expander(f"{translate_text('Resident Alert Registry', target_lang)}", expanded=False):
             subs_list = load_subscribers()
             st.markdown(f"**{translate_text('Enrolled Subscribers:', target_lang)}** `{len(subs_list)} registered`")
             st.caption("Active automated early warning alerts configured across North Eastern hotspots.")
@@ -920,7 +959,7 @@ elif st.session_state.page == "dashboard":
             sent_subs = [r for r in dispatch_results_a if r.get("status") == "success"]
             if sent_subs:
                 dispatch_text = f"Automated Early Warning Dispatched: {len(sent_subs)} registered resident(s) in {loc_a['title']} received email alerts (Risk: {risk_a['probability']}%)."
-                st.info(f"🚨 **{translate_text(dispatch_text, target_lang)}**")
+                st.info(f"**{translate_text(dispatch_text, target_lang)}**")
 
         # Top Metric Cards
 
@@ -977,7 +1016,7 @@ elif st.session_state.page == "dashboard":
             f"72h Cumulative Rainfall {triggers.get('rain_past_72h', 0.0):.1f} mm, "
             f"Topsoil Moisture Saturation {triggers.get('soil_moisture_top', 0.25)*100:.1f}%."
         )
-        st.caption(f"🌤️ **{translate_text('Weather Telemetry Summary', target_lang)}:** {translate_text(weather_summary_str, target_lang)}")
+        st.caption(f"**{translate_text('Weather Telemetry Summary', target_lang)}:** {translate_text(weather_summary_str, target_lang)}")
 
         # Map & Gauge Section
         col_map, col_gauge = st.columns([3, 2])
@@ -985,13 +1024,13 @@ elif st.session_state.page == "dashboard":
             st.markdown(f"<div class='section-title'>{translate_text('Regional Hazard & Susceptibility Map', target_lang)}</div>", unsafe_allow_html=True)
             m_ctrl1, m_ctrl2, m_ctrl3, m_ctrl4, m_ctrl5 = st.columns([2.2, 1.8, 1.8, 1.9, 1.8])
             with m_ctrl1:
-                show_heatmap = st.checkbox(translate_text("🔥 Risk Heatmap", target_lang), value=True, help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
+                show_heatmap = st.checkbox(translate_text("Risk Heatmap", target_lang), value=True, help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
             with m_ctrl2:
                 show_markers = st.checkbox(translate_text("Hotspot Pins", target_lang), value=True, help="District hotspot markers with model risk scores")
             with m_ctrl3:
-                show_citizen_reports = st.checkbox(translate_text("📸 Field Reports", target_lang), value=True, help="Toggle community & ground crew geo-tagged incident pins with photos")
+                show_citizen_reports = st.checkbox(translate_text("Field Reports", target_lang), value=True, help="Toggle community & ground crew geo-tagged incident pins with photos")
             with m_ctrl4:
-                show_roads = st.checkbox(translate_text("🛣️ Road Risk", target_lang), value=True, help="Local drivable road network within 5km, highlighting segments intersecting active 2km risk buffer and citizen-reported blockages")
+                show_roads = st.checkbox(translate_text("Road Risk", target_lang), value=True, help="Local drivable road network within 5km, highlighting segments intersecting active 2km risk buffer and citizen-reported blockages")
             with m_ctrl5:
                 heatmap_radius = st.slider(translate_text("Blur Radius", target_lang), min_value=14, max_value=42, value=24, step=2)
 
@@ -1005,7 +1044,7 @@ elif st.session_state.page == "dashboard":
             # 2. Overlay Continuous Landslide Risk Heatmap (Model Weighted)
             if show_heatmap:
                 risk_heat_points = generate_risk_heatmap_data(weather_a, active_targets=[{**loc_a, "risk": risk_a}], spread_deg=0.09)
-                heat_fg = folium.FeatureGroup(name="🔥 Dynamic Risk Heatmap (Model Weighted)", show=True)
+                heat_fg = folium.FeatureGroup(name="Landslide Risk Heatmap (Model Weighted)", show=True)
                 HeatMap(
                     risk_heat_points,
                     min_opacity=0.45,
@@ -1032,8 +1071,10 @@ elif st.session_state.page == "dashboard":
                     mcolor = hinfo["color"]
                     prob = hinfo["probability"]
                     classification = hinfo["classification"]
+                    h_pop = get_exposed_population(hinfo["lat"], hinfo["lon"], radius_m=2000)
+                    h_prio = (prob / 100.0) * h_pop
                     popup_html = f"""
-                    <div style='font-family: sans-serif; font-size: 12px; line-height: 1.45; min-width: 190px;'>
+                    <div style='font-family: sans-serif; font-size: 12px; line-height: 1.45; min-width: 195px;'>
                         <b style='font-size: 13px; color: #0F172A;'>{hname}</b><br>
                         <span style='color: #64748B;'>{hinfo['state']}</span>
                         <div style='margin: 6px 0; padding: 4px 8px; border-radius: 4px; background: {mcolor}18; border-left: 3px solid {mcolor};'>
@@ -1042,6 +1083,8 @@ elif st.session_state.page == "dashboard":
                         </div>
                         <div style='font-size: 11px; color: #475569;'>
                             Elevation: {hinfo['elevation']:,} m &nbsp;|&nbsp; Slope: {hinfo['slope']}°<br>
+                            Exposed Pop (~2km): <b>{int(round(h_pop)):,}</b><br>
+                            Evacuation Priority: <b>{int(round(h_prio)):,}</b><br>
                             Baseline Vulnerability: <b>{hinfo['vulnerability']}</b><br>
                             Geology: <i>{hinfo['geology']}</i>
                         </div>
@@ -1051,7 +1094,7 @@ elif st.session_state.page == "dashboard":
                         location=[hinfo["lat"], hinfo["lon"]],
                         radius=6,
                         popup=folium.Popup(popup_html, max_width=280),
-                        tooltip=f"{hname} ({hinfo['state']}) — Risk: {prob:.1f}% ({classification})",
+                        tooltip=f"{hname} ({hinfo['state']}) — Risk: {prob:.1f}% | Pop: {int(round(h_pop)):,} | Priority: {int(round(h_prio)):,}",
                         color=mcolor,
                         fill=True,
                         fill_color=mcolor,
@@ -1061,18 +1104,20 @@ elif st.session_state.page == "dashboard":
                 hotspots_fg.add_to(m)
 
             # 4. Highlight Selected Active Observatory Target
+            target_pop = get_exposed_population(loc_a['lat'], loc_a['lon'], radius_m=2000)
+            target_prio = (risk_a['probability'] / 100.0) * target_pop
             folium.CircleMarker(
                 location=[loc_a['lat'], loc_a['lon']],
                 radius=12,
-                popup=f"<div style='font-family: sans-serif; font-size: 12px;'><b>Active Target:</b> {loc_a['title']}<br><b>Predicted Risk:</b> <span style='color:{risk_a['color']}'>{risk_a['probability']}%</span> ({risk_a['classification']})<br>Slope: {loc_a['slope']}°</div>",
-                tooltip=f"Selected Active Target: {loc_a['title']} ({risk_a['probability']}%)",
-                color="#38BDF8", fill=True, fill_color="#38BDF8", fill_opacity=0.40, weight=3
+                popup=f"<div style='font-family: sans-serif; font-size: 12px;'><b>Active Target:</b> {loc_a['title']}<br><b>Predicted Risk:</b> <span style='color:{risk_a['color']}'>{risk_a['probability']}%</span> ({risk_a['classification']})<br>Exposed Pop (~2km): <b>{int(round(target_pop)):,}</b><br>Evacuation Priority: <b>{int(round(target_prio)):,}</b><br>Slope: {loc_a['slope']}°</div>",
+                tooltip=f"Selected Active Target: {loc_a['title']} ({risk_a['probability']}%) | Pop: {int(round(target_pop)):,}",
+                color="#1B4965", fill=True, fill_color="#1B4965", fill_opacity=0.40, weight=3
             ).add_to(m)
 
             # 5. Overlay Citizen & Field Geo-Tagged Reports with Photo Popups
             citizen_reports = get_all_citizen_reports()
             if show_citizen_reports and citizen_reports:
-                citizen_fg = folium.FeatureGroup(name="📸 Citizen Field Reports (Geo-Tagged)", show=True)
+                citizen_fg = folium.FeatureGroup(name="Citizen Field Reports (Geo-Tagged)", show=True)
                 for cr in citizen_reports:
                     mcolor = get_severity_badge_color(cr["severity"])
                     photo_uri = get_photo_data_uri(cr["photo_filename"])
@@ -1098,7 +1143,7 @@ elif st.session_state.page == "dashboard":
                     folium.Marker(
                         location=[cr["latitude"], cr["longitude"]],
                         popup=folium.Popup(popup_html, max_width=280),
-                        tooltip=f"📸 Field Report: {cr['location_name']} ({cr['severity']})",
+                        tooltip=f"Field Report: {cr['location_name']} ({cr['severity']})",
                         icon=folium.Icon(color="red" if "critical" in cr["severity"].lower() else "orange", icon="camera", prefix="fa")
                     ).add_to(citizen_fg)
                 citizen_fg.add_to(m)
@@ -1118,7 +1163,7 @@ elif st.session_state.page == "dashboard":
                                     or "road blockage" in str(cr.get("severity", "")).lower()
                                     or "debris flow blockage" in str(cr.get("description", "")).lower()
                                     or "blocked" in str(cr.get("description", "")).lower()
-                                ) else cr.get("report_type", "hazard")
+                                    ) else cr.get("report_type", "hazard")
                             }
                             for cr in (citizen_reports or [])
                         ]
@@ -1127,13 +1172,13 @@ elif st.session_state.page == "dashboard":
 
                         def road_style_fn(props):
                             if props.get("blocked"):
-                                return {"color": "#EF4444", "weight": 4.5, "opacity": 0.95}
+                                return {"color": "#B91C1C", "weight": 4.5, "opacity": 0.95}
                             elif props.get("at_risk"):
-                                return {"color": "#F97316", "weight": 3.5, "opacity": 0.85}
+                                return {"color": "#B45309", "weight": 3.5, "opacity": 0.85}
                             else:
                                 return {"color": "#64748B", "weight": 2.0, "opacity": 0.60}
 
-                        roads_fg = folium.FeatureGroup(name=f"🛣️ Road Infrastructure Risk ({loc_a['title']})", show=True)
+                        roads_fg = folium.FeatureGroup(name=f"Road Infrastructure Risk ({loc_a['title']})", show=True)
                         folium.GeoJson(
                             clean_edges,
                             style_function=lambda f: road_style_fn(f["properties"]),
@@ -1163,17 +1208,17 @@ elif st.session_state.page == "dashboard":
             lbl_road_blk = translate_text("Blocked Road", target_lang)
 
             st.markdown(f"""
-            <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.45rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
-                <span>🔥 <b>{lbl_heat}:</b></span>
-                <span style="color: #10B981;">● {lbl_low} (&lt;35%)</span>
-                <span style="color: #F59E0B;">● {lbl_med} (35-70%)</span>
-                <span style="color: #EF4444;">● {lbl_high} (&gt;70%)</span>
-                <span style="color: #38BDF8;">● {lbl_target}</span>
-                <span style="color: #F97316;">📸 {lbl_reps} ({len(citizen_reports)})</span>
-                <span style="color: #94A3B8;">&nbsp;|&nbsp; 🛣️ <b>Roads:</b></span>
-                <span style="color: #94A3B8;"><b style="color:#64748B;">━</b> {lbl_road_norm}</span>
-                <span style="color: #F97316;"><b>━</b> {lbl_road_risk}</span>
-                <span style="color: #EF4444;"><b>━</b> {lbl_road_blk}</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #475569; margin-top: 0.35rem; padding: 0.45rem 0.85rem; background: #FFFFFF; border-radius: 4px; border: 1px solid #E2E8F0;">
+                <span><b>{lbl_heat}:</b></span>
+                <span style="color: #15803D; font-weight: 600;">● {lbl_low} (&lt;35%)</span>
+                <span style="color: #B45309; font-weight: 600;">● {lbl_med} (35-70%)</span>
+                <span style="color: #B91C1C; font-weight: 600;">● {lbl_high} (&gt;70%)</span>
+                <span style="color: #1B4965; font-weight: 600;">● {lbl_target}</span>
+                <span style="color: #B45309; font-weight: 600;">● {lbl_reps} ({len(citizen_reports)})</span>
+                <span style="color: #64748B;">&nbsp;|&nbsp; <b>Roads:</b></span>
+                <span style="color: #64748B;"><b style="color:#64748B;">━</b> {lbl_road_norm}</span>
+                <span style="color: #B45309;"><b>━</b> {lbl_road_risk}</span>
+                <span style="color: #B91C1C;"><b>━</b> {lbl_road_blk}</span>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1184,22 +1229,22 @@ elif st.session_state.page == "dashboard":
                 value=risk_a["probability"],
                 domain={'x': [0, 1], 'y': [0, 1]},
                 number={'suffix': "%", 'font': {'size': 44, 'family': 'Plus Jakarta Sans', 'color': risk_a["color"]}},
-                title={'text': f"<b>{risk_a['classification'].upper()} HAZARD</b><br><span style='font-size:0.75em;color:#94A3B8'>{loc_a['title']}</span>", 'font': {'size': 18, 'color': '#E2E8F0'}},
+                title={'text': f"<b>{risk_a['classification'].upper()} HAZARD</b><br><span style='font-size:0.75em;color:#475569'>{loc_a['title']}</span>", 'font': {'size': 18, 'color': '#0F172A'}},
                 gauge={
-                    'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#475569", 'tickfont': {'color': '#94A3B8'}},
+                    'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#CBD5E1", 'tickfont': {'color': '#475569'}},
                     'bar': {'color': risk_a["color"], 'thickness': 0.28},
-                    'bgcolor': "rgba(0,0,0,0)",
+                    'bgcolor': "#FFFFFF",
                     'borderwidth': 1,
-                    'bordercolor': "rgba(255,255,255,0.1)",
+                    'bordercolor': "#E2E8F0",
                     'steps': [
-                        {'range': [0, 35], 'color': 'rgba(16, 185, 129, 0.12)'},
-                        {'range': [35, 70], 'color': 'rgba(245, 158, 11, 0.12)'},
-                        {'range': [70, 100], 'color': 'rgba(239, 68, 68, 0.15)'}
+                        {'range': [0, 35], 'color': 'rgba(21, 128, 61, 0.12)'},
+                        {'range': [35, 70], 'color': 'rgba(180, 83, 9, 0.12)'},
+                        {'range': [70, 100], 'color': 'rgba(185, 28, 28, 0.15)'}
                     ],
-                    'threshold': {'line': {'color': "#EF4444", 'width': 3}, 'thickness': 0.85, 'value': 70.0}
+                    'threshold': {'line': {'color': "#B91C1C", 'width': 3}, 'thickness': 0.85, 'value': 70.0}
                 }
             ))
-            gauge_fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=290, margin=dict(l=20, r=20, t=50, b=10), font={'family': 'Plus Jakarta Sans, sans-serif'})
+            gauge_fig.update_layout(paper_bgcolor='#FFFFFF', plot_bgcolor='#FFFFFF', height=290, margin=dict(l=20, r=20, t=50, b=10), font={'family': 'Plus Jakarta Sans, sans-serif', 'color': '#0F172A'})
             st.plotly_chart(gauge_fig, use_container_width=True)
 
             lbl_breakdown = translate_text("Model Contribution Breakdown:", target_lang)
@@ -1207,13 +1252,16 @@ elif st.session_state.page == "dashboard":
             lbl_rain_trig = translate_text("72h Rain Trigger Volume:", target_lang)
             lbl_vol_sm = translate_text("Volumetric Soil Moisture:", target_lang)
             st.markdown(f"""
-            <div style="font-size: 0.84rem; color: #94A3B8; background: rgba(255,255,255,0.02); padding: 0.8rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+            <div style="font-size: 0.84rem; color: #334155; background: #FFFFFF; padding: 0.8rem 1rem; border-radius: 4px; border: 1px solid #E2E8F0;">
                 <b>{lbl_breakdown}</b><br>
                 • {lbl_ml_base} <code>{risk_a['ml_probability']}%</code> (Topography & Lithology)<br>
                 • {lbl_rain_trig} <code>{triggers.get('rain_past_72h', 0):.1f} mm</code><br>
                 • {lbl_vol_sm} <code>{triggers.get('soil_moisture_top', 0.25):.3f} m³/m³</code>
             </div>
             """, unsafe_allow_html=True)
+
+        # Population-Weighted Hotspot Prioritization ("Evacuate First")
+        render_population_prioritization_section(hotspot_preds, target_lang=target_lang, key_prefix="single_obs")
 
         # Forward 14-Day Trajectory
         st.markdown("---")
@@ -1230,15 +1278,15 @@ elif st.session_state.page == "dashboard":
             daily_df['predicted_risk_pct'] = forecast_probs
 
             trend_fig = go.Figure()
-            trend_fig.add_trace(go.Bar(x=daily_df['date'].astype(str), y=daily_df['total_precip_mm'], name='Projected Precipitation (mm)', marker_color='rgba(56, 189, 248, 0.55)', yaxis='y'))
-            trend_fig.add_trace(go.Scatter(x=daily_df['date'].astype(str), y=daily_df['predicted_risk_pct'], name='Predicted Risk Probability (%)', mode='lines+markers', line=dict(color='#F43F5E', width=2.5), marker=dict(size=6, color='#F43F5E'), yaxis='y2'))
-            trend_fig.add_hline(y=70, line_dash="dash", line_color="rgba(239, 68, 68, 0.7)", annotation_text="High Risk Threshold (70%)", annotation_position="top right", yref='y2', annotation_font=dict(color="#EF4444", size=10))
+            trend_fig.add_trace(go.Bar(x=daily_df['date'].astype(str), y=daily_df['total_precip_mm'], name='Projected Precipitation (mm)', marker_color='rgba(27, 73, 101, 0.45)', yaxis='y'))
+            trend_fig.add_trace(go.Scatter(x=daily_df['date'].astype(str), y=daily_df['predicted_risk_pct'], name='Predicted Risk Probability (%)', mode='lines+markers', line=dict(color='#B91C1C', width=2.5), marker=dict(size=6, color='#B91C1C'), yaxis='y2'))
+            trend_fig.add_hline(y=70, line_dash="dash", line_color="rgba(185, 28, 28, 0.7)", annotation_text="High Risk Threshold (70%)", annotation_position="top right", yref='y2', annotation_font=dict(color="#B91C1C", size=10))
             trend_fig.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family="Plus Jakarta Sans, sans-serif", color="#94A3B8"),
-                xaxis=dict(title=dict(text="Forecast Date", font=dict(color="#94A3B8")), showgrid=True, gridcolor='rgba(255, 255, 255, 0.05)', tickfont=dict(color="#94A3B8")),
-                yaxis=dict(title=dict(text="Precipitation (mm/day)", font=dict(color="#38BDF8")), side="left", showgrid=True, gridcolor='rgba(255, 255, 255, 0.05)', tickfont=dict(color="#38BDF8")),
-                yaxis2=dict(title=dict(text="Probability (%)", font=dict(color="#F43F5E")), side="right", overlaying="y", range=[0, 100], showgrid=False, tickfont=dict(color="#F43F5E")),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(color="#CBD5E1")),
+                paper_bgcolor='#FFFFFF', plot_bgcolor='#FFFFFF', font=dict(family="Plus Jakarta Sans, sans-serif", color="#334155"),
+                xaxis=dict(title=dict(text="Forecast Date", font=dict(color="#334155")), showgrid=True, gridcolor='#E2E8F0', tickfont=dict(color="#475569")),
+                yaxis=dict(title=dict(text="Precipitation (mm/day)", font=dict(color="#1B4965")), side="left", showgrid=True, gridcolor='#E2E8F0', tickfont=dict(color="#1B4965")),
+                yaxis2=dict(title=dict(text="Probability (%)", font=dict(color="#B91C1C")), side="right", overlaying="y", range=[0, 100], showgrid=False, tickfont=dict(color="#B91C1C")),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(color="#334155")),
                 height=360, margin=dict(l=40, r=40, t=30, b=30), hovermode="x unified"
             )
             st.plotly_chart(trend_fig, use_container_width=True)
@@ -1249,8 +1297,8 @@ elif st.session_state.page == "dashboard":
             translate_text("Risk Factor Attribution", target_lang), 
             translate_text("Subsurface Hydrology", target_lang), 
             translate_text("Emergency Protocols & SDMA", target_lang),
-            translate_text("🔔 Automated Email Alerts", target_lang),
-            translate_text("📸 Citizen / Field Geo-Reporting", target_lang)
+            translate_text("Automated Email Alerts", target_lang),
+            translate_text("Citizen / Field Geo-Reporting", target_lang)
         ])
         with tab1:
             st.markdown(f"##### {translate_text('Primary Drivers Influencing Current Assessment', target_lang)}")
@@ -1258,7 +1306,7 @@ elif st.session_state.page == "dashboard":
             dcol1, dcol2 = st.columns([3, 2])
             with dcol1:
                 bar_fig = px.bar(driver_df, x="contribution", y="factor", orientation='h', text="value", labels={"contribution": "Weight Contribution (%)", "factor": "Hazard Driver"}, color="contribution", color_continuous_scale="Reds")
-                bar_fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family="Plus Jakarta Sans", color="#94A3B8"), xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(showgrid=False), height=260, showlegend=False, margin=dict(l=10, r=20, t=10, b=10))
+                bar_fig.update_layout(paper_bgcolor='#FFFFFF', plot_bgcolor='#FFFFFF', font=dict(family="Plus Jakarta Sans", color="#334155"), xaxis=dict(showgrid=True, gridcolor='#E2E8F0', tickfont=dict(color="#475569")), yaxis=dict(showgrid=False, tickfont=dict(color="#334155")), height=260, showlegend=False, margin=dict(l=10, r=20, t=10, b=10))
                 st.plotly_chart(bar_fig, use_container_width=True)
             with dcol2:
                 lbl_litho = translate_text("Lithological & Terrain Overview:", target_lang)
@@ -1267,7 +1315,7 @@ elif st.session_state.page == "dashboard":
                 lbl_relief = translate_text("Relief Energy:", target_lang)
                 lbl_corr_notes = translate_text("Corridor Assessment:", target_lang)
                 st.markdown(f"""
-                <div style="font-size: 0.88rem; color: #CBD5E1; background: rgba(255,255,255,0.02); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+                <div style="font-size: 0.88rem; color: #334155; background: #FFFFFF; padding: 1rem; border-radius: 4px; border: 1px solid #E2E8F0;">
                     <b>{lbl_litho}</b><br>
                     • {lbl_geo_form} <i>{loc_a['geology']}</i><br>
                     • {lbl_crit_slope} <b>{loc_a['slope']}°</b> (Instability threshold: > 35°)<br>
@@ -1284,8 +1332,8 @@ elif st.session_state.page == "dashboard":
                 depth_vals = [latest.get("soil_moisture_0_to_1cm", 0.25), latest.get("soil_moisture_1_to_3cm", 0.26), latest.get("soil_moisture_3_to_9cm", 0.27), latest.get("soil_moisture_9_to_27cm", 0.29), latest.get("soil_moisture_27_to_81cm", 0.31)]
                 soil_df = pd.DataFrame({"Horizon": depth_labels, "Volumetric Moisture (m³/m³)": depth_vals})
                 fig_soil = px.bar(soil_df, x="Volumetric Moisture (m³/m³)", y="Horizon", orientation='h', color="Volumetric Moisture (m³/m³)", color_continuous_scale="Blues", range_x=[0, 0.6])
-                fig_soil.add_vline(x=0.40, line_dash="dash", line_color="#EF4444", annotation_text="Liquefaction Saturation Limit (0.40 m³/m³)", annotation_font=dict(color="#EF4444", size=10))
-                fig_soil.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family="Plus Jakarta Sans", color="#94A3B8"), xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(showgrid=False), height=250, margin=dict(l=20, r=20, t=10, b=10))
+                fig_soil.add_vline(x=0.40, line_dash="dash", line_color="#B91C1C", annotation_text="Liquefaction Saturation Limit (0.40 m³/m³)", annotation_font=dict(color="#B91C1C", size=10))
+                fig_soil.update_layout(paper_bgcolor='#FFFFFF', plot_bgcolor='#FFFFFF', font=dict(family="Plus Jakarta Sans", color="#334155"), xaxis=dict(showgrid=True, gridcolor='#E2E8F0', tickfont=dict(color="#475569")), yaxis=dict(showgrid=False, tickfont=dict(color="#334155")), height=250, margin=dict(l=20, r=20, t=10, b=10))
                 st.plotly_chart(fig_soil, use_container_width=True)
             else:
                 st.write("Soil moisture horizon data currently unavailable.")
@@ -1295,7 +1343,7 @@ elif st.session_state.page == "dashboard":
             ecol1, ecol2 = st.columns(2)
             with ecol1:
                 st.markdown(f"""
-                <div style="font-size: 0.88rem; color: #CBD5E1; background: rgba(255,255,255,0.02); padding: 1.1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+                <div style="font-size: 0.88rem; color: #334155; background: #FFFFFF; padding: 1.1rem; border-radius: 4px; border: 1px solid #E2E8F0;">
                     <b>{translate_text('Authorized State Agency', target_lang)}:</b><br>{sdma['dept']}<br><br>
                     • {translate_text('State Toll-Free Emergency Helpline', target_lang)}: <code>{sdma['helpline']}</code><br>
                     • {translate_text('Direct Control Room', target_lang)}: <code>{sdma['phone']}</code><br>
@@ -1309,7 +1357,7 @@ elif st.session_state.page == "dashboard":
                 sop_3 = translate_text("Never seek shelter in stream depressions; mudslides accelerate in natural drainage chutes.", target_lang)
                 sop_4 = translate_text("Restrict non-essential vehicular movement during sustained rainfall episodes.", target_lang)
                 st.markdown(f"""
-                <div style="font-size: 0.88rem; color: #CBD5E1; background: rgba(255,255,255,0.02); padding: 1.1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+                <div style="font-size: 0.88rem; color: #334155; background: #FFFFFF; padding: 1.1rem; border-radius: 4px; border: 1px solid #E2E8F0;">
                     <b>{sop_title}</b><br>
                     1. <b>{translate_text('Pre-Warning Signs', target_lang)}:</b> {sop_1}<br>
                     2. <b>{translate_text('Safe Refuge', target_lang)}:</b> {sop_2}<br>
@@ -1385,7 +1433,7 @@ elif st.session_state.page == "dashboard":
                 rep_desc = st.text_area(translate_text("Field Description & Road Status", target_lang), placeholder="e.g. Boulders rolling across carriageway, culvert overflowing, traffic halted...", key="rep_desc")
                 rep_name = st.text_input(translate_text("Reporter Name / Agency", target_lang), value="Community Observer", key="rep_name")
 
-                if st.button(translate_text("🚀 Transmit Geo-Tagged Field Report", target_lang), type="primary", use_container_width=True, key="btn_submit_rep"):
+                if st.button(translate_text("Transmit Geo-Tagged Field Report", target_lang), type="primary", use_container_width=True, key="btn_submit_rep"):
                     img_bytes = active_photo.getvalue() if active_photo is not None else None
                     new_rec = save_citizen_report(
                         latitude=rep_lat,
@@ -1403,7 +1451,7 @@ elif st.session_state.page == "dashboard":
 
             # Feed of latest field reports
             st.markdown("---")
-            st.markdown(f"###### 📋 {translate_text('Recent Field Incidents Log (SQLite Database)', target_lang)}")
+            st.markdown(f"###### {translate_text('Recent Field Incidents Log (SQLite Database)', target_lang)}")
             all_reps = get_all_citizen_reports()
             if all_reps:
                 r_cols = st.columns(min(3, len(all_reps)))
@@ -1412,15 +1460,15 @@ elif st.session_state.page == "dashboard":
                         r_color = get_severity_badge_color(r_item["severity"])
                         photo_uri = get_photo_data_uri(r_item["photo_filename"])
                         st.markdown(f"""
-                        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 0.75rem; font-size: 0.82rem;">
-                            {'<img src="' + photo_uri + '" style="width: 100%; height: 120px; object-fit: cover; border-radius: 6px; margin-bottom: 0.5rem;" />' if photo_uri else ''}
-                            <div style="font-size: 0.72rem; color: #94A3B8;">{r_item['timestamp']}</div>
-                            <b style="font-size: 0.92rem; color: #F1F5F9;">{r_item['location_name']}</b><br>
-                            <span style="color: #64748B;">{r_item['state']}</span>
-                            <div style="margin: 0.35rem 0; padding: 0.2rem 0.5rem; background: {r_color}22; border-left: 3px solid {r_color}; border-radius: 3px;">
+                        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 4px; padding: 0.75rem; font-size: 0.82rem;">
+                            {'<img src="' + photo_uri + '" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; margin-bottom: 0.5rem;" />' if photo_uri else ''}
+                            <div style="font-size: 0.72rem; color: #64748B;">{r_item['timestamp']}</div>
+                            <b style="font-size: 0.92rem; color: #0F172A;">{r_item['location_name']}</b><br>
+                            <span style="color: #475569;">{r_item['state']}</span>
+                            <div style="margin: 0.35rem 0; padding: 0.2rem 0.5rem; background: {r_color}18; border-left: 3px solid {r_color}; border-radius: 2px;">
                                 <b style="color: {r_color};">{r_item['severity'].upper()}</b> &bull; {r_item['hazard_type']}
                             </div>
-                            <div style="font-size: 0.76rem; color: #94A3B8; margin-top: 0.3rem;">{r_item['description'][:90]}...</div>
+                            <div style="font-size: 0.76rem; color: #334155; margin-top: 0.3rem;">{r_item['description'][:90]}...</div>
                             <div style="font-size: 0.70rem; color: #64748B; margin-top: 0.4rem;">By: <b>{r_item['reporter_name']}</b></div>
                         </div>
                         """, unsafe_allow_html=True)
@@ -1442,7 +1490,7 @@ elif st.session_state.page == "dashboard":
             lbl_corr = translate_text("Corridor:", target_lang)
             st.markdown(f"""
             <div class='sub-title'>
-                {lbl_dist} <b style="color: #38BDF8;">{deltas['distance_km']} km</b> &nbsp;|&nbsp; 
+                {lbl_dist} <b style="color: #1B4965;">{deltas['distance_km']} km</b> &nbsp;|&nbsp; 
                 {lbl_corr} <span class='pin-badge-a'>Pin A: {loc_a['title']}</span> ⇄ <span class='pin-badge-b'>Pin B: {loc_b['title']}</span>
             </div>
             """, unsafe_allow_html=True)
@@ -1517,7 +1565,7 @@ elif st.session_state.page == "dashboard":
         sent_total = sum(1 for r in (disp_a + disp_b) if r.get("status") == "success")
         if sent_total > 0:
             dispatch_text = f"Automated Early Warning Dispatched: {sent_total} registered resident(s) received advisory emails across pinned comparison sectors."
-            st.info(f"🚨 **{translate_text(dispatch_text, target_lang)}**")
+            st.info(f"**{translate_text(dispatch_text, target_lang)}**")
 
         # 3. Top 5 Side-by-Side Metric Comparison Cards
 
@@ -1535,9 +1583,9 @@ elif st.session_state.page == "dashboard":
             <div class="compare-card">
                 <div class="metric-label">{translate_text("Landslide Risk %", target_lang)}</div>
                 <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.2rem;">
-                    <span style="font-size: 1.35rem; font-weight: 700; color: #38BDF8;">{risk_a['probability']}%</span>
-                    <span style="font-size: 0.8rem; color: #94A3B8;">vs</span>
-                    <span style="font-size: 1.35rem; font-weight: 700; color: #FB7185;">{risk_b['probability']}%</span>
+                    <span style="font-size: 1.35rem; font-weight: 700; color: #1B4965;">{risk_a['probability']}%</span>
+                    <span style="font-size: 0.8rem; color: #64748B;">vs</span>
+                    <span style="font-size: 1.35rem; font-weight: 700; color: #B91C1C;">{risk_b['probability']}%</span>
                 </div>
                 <div class="compare-delta-pill {delta_class}">Δ {sign}{deltas['prob_delta']}% (B - A)</div>
                 <div class="metric-sub">Pin A: {risk_a['classification']} | Pin B: {risk_b['classification']}</div>
@@ -1554,9 +1602,9 @@ elif st.session_state.page == "dashboard":
             <div class="compare-card">
                 <div class="metric-label">{translate_text("24h Rainfall Total", target_lang)}</div>
                 <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.2rem;">
-                    <span style="font-size: 1.35rem; font-weight: 700; color: #38BDF8;">{r24_a:.1f} <span style="font-size: 0.75rem;">mm</span></span>
-                    <span style="font-size: 0.8rem; color: #94A3B8;">vs</span>
-                    <span style="font-size: 1.35rem; font-weight: 700; color: #FB7185;">{r24_b:.1f} <span style="font-size: 0.75rem;">mm</span></span>
+                    <span style="font-size: 1.35rem; font-weight: 700; color: #1B4965;">{r24_a:.1f} <span style="font-size: 0.75rem;">mm</span></span>
+                    <span style="font-size: 0.8rem; color: #64748B;">vs</span>
+                    <span style="font-size: 1.35rem; font-weight: 700; color: #B91C1C;">{r24_b:.1f} <span style="font-size: 0.75rem;">mm</span></span>
                 </div>
                 <div class="compare-delta-pill {delta_class}">Δ {sign}{delta_r24:.1f} mm</div>
                 <div class="metric-sub">Rate: A {curr_a.get('precipitation_rate', 0.0):.1f} | B {curr_b.get('precipitation_rate', 0.0):.1f} mm/h</div>
@@ -1573,9 +1621,9 @@ elif st.session_state.page == "dashboard":
             <div class="compare-card">
                 <div class="metric-label">{translate_text("72h Antecedent Rain", target_lang)}</div>
                 <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.2rem;">
-                    <span style="font-size: 1.35rem; font-weight: 700; color: #38BDF8;">{r72_a:.1f} <span style="font-size: 0.75rem;">mm</span></span>
-                    <span style="font-size: 0.8rem; color: #94A3B8;">vs</span>
-                    <span style="font-size: 1.35rem; font-weight: 700; color: #FB7185;">{r72_b:.1f} <span style="font-size: 0.75rem;">mm</span></span>
+                    <span style="font-size: 1.35rem; font-weight: 700; color: #1B4965;">{r72_a:.1f} <span style="font-size: 0.75rem;">mm</span></span>
+                    <span style="font-size: 0.8rem; color: #64748B;">vs</span>
+                    <span style="font-size: 1.35rem; font-weight: 700; color: #B91C1C;">{r72_b:.1f} <span style="font-size: 0.75rem;">mm</span></span>
                 </div>
                 <div class="compare-delta-pill {delta_class}">Δ {sign}{delta_r72:.1f} mm</div>
                 <div class="metric-sub">7d Totals: A {trig_a.get('rain_past_7d', 0):.0f}mm | B {trig_b.get('rain_past_7d', 0):.0f}mm</div>
@@ -1592,9 +1640,9 @@ elif st.session_state.page == "dashboard":
             <div class="compare-card">
                 <div class="metric-label">{translate_text("Topsoil Saturation (0-9cm)", target_lang)}</div>
                 <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.2rem;">
-                    <span style="font-size: 1.35rem; font-weight: 700; color: #38BDF8;">{st_a:.1f}%</span>
-                    <span style="font-size: 0.8rem; color: #94A3B8;">vs</span>
-                    <span style="font-size: 1.35rem; font-weight: 700; color: #FB7185;">{st_b:.1f}%</span>
+                    <span style="font-size: 1.35rem; font-weight: 700; color: #1B4965;">{st_a:.1f}%</span>
+                    <span style="font-size: 0.8rem; color: #64748B;">vs</span>
+                    <span style="font-size: 1.35rem; font-weight: 700; color: #B91C1C;">{st_b:.1f}%</span>
                 </div>
                 <div class="compare-delta-pill {delta_class}">Δ {sign}{delta_st:.1f}%</div>
                 <div class="metric-sub">Critical Saturation: &gt;40.0%</div>
@@ -1611,9 +1659,9 @@ elif st.session_state.page == "dashboard":
             <div class="compare-card">
                 <div class="metric-label">{translate_text("Deep Subsoil (27-81cm)", target_lang)}</div>
                 <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.2rem;">
-                    <span style="font-size: 1.35rem; font-weight: 700; color: #38BDF8;">{sd_a:.1f}%</span>
-                    <span style="font-size: 0.8rem; color: #94A3B8;">vs</span>
-                    <span style="font-size: 1.35rem; font-weight: 700; color: #FB7185;">{sd_b:.1f}%</span>
+                    <span style="font-size: 1.35rem; font-weight: 700; color: #1B4965;">{sd_a:.1f}%</span>
+                    <span style="font-size: 0.8rem; color: #64748B;">vs</span>
+                    <span style="font-size: 1.35rem; font-weight: 700; color: #B91C1C;">{sd_b:.1f}%</span>
                 </div>
                 <div class="compare-delta-pill {delta_class}">Δ {sign}{delta_sd:.1f}%</div>
                 <div class="metric-sub">Mean: A {trig_a.get('soil_moisture_mean', 0.3)*100:.1f}% | B {trig_b.get('soil_moisture_mean', 0.3)*100:.1f}%</div>
@@ -1627,7 +1675,7 @@ elif st.session_state.page == "dashboard":
             f"Pin B ({loc_b['title']}) 24h rainfall {trig_b.get('rain_past_24h', 0.0):.1f} mm, "
             f"72h rainfall {r72_b:.1f} mm, topsoil moisture {st_b:.1f}%."
         )
-        st.caption(f"🌤️ **{translate_text('Comparative Weather Telemetry', target_lang)}:** {translate_text(dual_weather_summary, target_lang)}")
+        st.caption(f"**{translate_text('Comparative Weather Telemetry', target_lang)}:** {translate_text(dual_weather_summary, target_lang)}")
 
         # 4. Interactive Map & Side-by-Side Gauges
         st.markdown("---")
@@ -1638,13 +1686,13 @@ elif st.session_state.page == "dashboard":
         
             m_ctrl1, m_ctrl2, m_ctrl3, m_ctrl4, m_ctrl5 = st.columns([2.2, 1.8, 1.8, 1.9, 1.8])
             with m_ctrl1:
-                show_heatmap = st.checkbox(translate_text("🔥 Risk Heatmap", target_lang), value=True, key="dual_heatmap", help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
+                show_heatmap = st.checkbox(translate_text("Risk Heatmap", target_lang), value=True, key="dual_heatmap", help="Continuous spatial heatmap weighted by ML predicted failure probabilities")
             with m_ctrl2:
                 show_markers = st.checkbox(translate_text("Hotspot Pins", target_lang), value=True, key="dual_markers", help="Toggle clickable regional hotspot markers")
             with m_ctrl3:
-                show_citizen_reports_dual = st.checkbox(translate_text("📸 Field Reports", target_lang), value=True, key="dual_field_reps", help="Toggle community & ground crew geo-tagged incident pins with photos")
+                show_citizen_reports_dual = st.checkbox(translate_text("Field Reports", target_lang), value=True, key="dual_field_reps", help="Toggle community & ground crew geo-tagged incident pins with photos")
             with m_ctrl4:
-                show_roads_dual = st.checkbox(translate_text("🛣️ Road Risk", target_lang), value=True, key="dual_roads", help="Local drivable road network within 5km of corridor pins, color-coded by landslide risk & blockages")
+                show_roads_dual = st.checkbox(translate_text("Road Risk", target_lang), value=True, key="dual_roads", help="Local drivable road network within 5km of corridor pins, color-coded by landslide risk & blockages")
             with m_ctrl5:
                 heatmap_radius = st.slider(translate_text("Blur Radius", target_lang), min_value=14, max_value=42, value=24, step=2, key="dual_radius")
 
@@ -1660,7 +1708,7 @@ elif st.session_state.page == "dashboard":
             hotspot_preds_dual = compute_hotspot_predictions(weather_a, active_targets=[{**loc_a, "risk": risk_a}, {**loc_b, "risk": risk_b}])
             if show_heatmap:
                 risk_heat_points_dual = generate_risk_heatmap_data(weather_a, active_targets=[{**loc_a, "risk": risk_a}, {**loc_b, "risk": risk_b}], spread_deg=0.09)
-                heat_fg = folium.FeatureGroup(name="🔥 Dynamic Landslide Risk Heatmap", show=True)
+                heat_fg = folium.FeatureGroup(name="Dynamic Landslide Risk Heatmap", show=True)
                 HeatMap(
                     risk_heat_points_dual,
                     min_opacity=0.45,
@@ -1687,8 +1735,10 @@ elif st.session_state.page == "dashboard":
                     mcolor = hinfo["color"]
                     prob = hinfo["probability"]
                     classification = hinfo["classification"]
+                    h_pop = get_exposed_population(hinfo["lat"], hinfo["lon"], radius_m=2000)
+                    h_prio = (prob / 100.0) * h_pop
                     popup_html = f"""
-                    <div style='font-family: sans-serif; font-size: 12px; line-height: 1.45; min-width: 180px;'>
+                    <div style='font-family: sans-serif; font-size: 12px; line-height: 1.45; min-width: 185px;'>
                         <b style='font-size: 13px; color: #0F172A;'>{hname}</b><br>
                         <span style='color: #64748B;'>{hinfo['state']}</span>
                         <div style='margin: 6px 0; padding: 4px 8px; border-radius: 4px; background: {mcolor}18; border-left: 3px solid {mcolor};'>
@@ -1697,6 +1747,8 @@ elif st.session_state.page == "dashboard":
                         </div>
                         <div style='font-size: 11px; color: #475569;'>
                             Elevation: {hinfo['elevation']:,} m &nbsp;|&nbsp; Slope: {hinfo['slope']}°<br>
+                            Exposed Pop (~2km): <b>{int(round(h_pop)):,}</b><br>
+                            Evacuation Priority: <b>{int(round(h_prio)):,}</b><br>
                             Baseline Hazard: <b>{hinfo['vulnerability']}</b>
                         </div>
                     </div>
@@ -1705,7 +1757,7 @@ elif st.session_state.page == "dashboard":
                         location=[hinfo["lat"], hinfo["lon"]],
                         radius=5,
                         popup=folium.Popup(popup_html, max_width=260),
-                        tooltip=f"{hname} — Risk: {prob:.1f}% ({classification})",
+                        tooltip=f"{hname} — Risk: {prob:.1f}% | Pop: {int(round(h_pop)):,} | Priority: {int(round(h_prio)):,}",
                         color=mcolor,
                         fill=True,
                         fill_color=mcolor,
@@ -1717,7 +1769,7 @@ elif st.session_state.page == "dashboard":
             # 3. Add Geodesic Connection Line
             folium.PolyLine(
                 locations=[[loc_a['lat'], loc_a['lon']], [loc_b['lat'], loc_b['lon']]],
-                color="#38BDF8",
+                color="#1B4965",
                 weight=3,
                 opacity=0.8,
                 dash_array="6, 8",
@@ -1728,35 +1780,35 @@ elif st.session_state.page == "dashboard":
             folium.CircleMarker(
                 location=[mid_lat, mid_lon],
                 radius=4,
-                color="#F8FAFC",
+                color="#FFFFFF",
                 fill=True,
-                fill_color="#38BDF8",
+                fill_color="#1B4965",
                 popup=f"Geodesic Distance: <b>{deltas['distance_km']} km</b>",
                 tooltip=f"Distance: {deltas['distance_km']} km"
             ).add_to(m_dual)
 
-            # 4. Highlight Pin A (Cyan Blue)
+            # 4. Highlight Pin A (Navy Blue)
             folium.CircleMarker(
                 location=[loc_a['lat'], loc_a['lon']],
                 radius=13,
                 popup=f"<b>PIN A:</b> {loc_a['title']}<br>State: {loc_a['state']}<br>Risk: <b>{risk_a['probability']}%</b> ({risk_a['classification']})<br>Slope: {loc_a['slope']}°",
                 tooltip=f"Pin A: {loc_a['title']} ({risk_a['probability']}%)",
-                color="#0284C7",
+                color="#1B4965",
                 fill=True,
-                fill_color="#38BDF8",
+                fill_color="#1B4965",
                 fill_opacity=0.45,
                 weight=3
             ).add_to(m_dual)
 
-            # 5. Highlight Pin B (Rose Red)
+            # 5. Highlight Pin B (Risk Red)
             folium.CircleMarker(
                 location=[loc_b['lat'], loc_b['lon']],
                 radius=13,
                 popup=f"<b>PIN B:</b> {loc_b['title']}<br>State: {loc_b['state']}<br>Risk: <b>{risk_b['probability']}%</b> ({risk_b['classification']})<br>Slope: {loc_b['slope']}°",
                 tooltip=f"Pin B: {loc_b['title']} ({risk_b['probability']}%)",
-                color="#BE123C",
+                color="#B91C1C",
                 fill=True,
-                fill_color="#FB7185",
+                fill_color="#B91C1C",
                 fill_opacity=0.45,
                 weight=3
             ).add_to(m_dual)
@@ -1764,7 +1816,7 @@ elif st.session_state.page == "dashboard":
             # 6. Overlay Citizen & Field Reports with Photo Popups
             citizen_reports_dual = get_all_citizen_reports()
             if show_citizen_reports_dual and citizen_reports_dual:
-                citizen_fg_dual = folium.FeatureGroup(name="📸 Citizen Field Reports", show=True)
+                citizen_fg_dual = folium.FeatureGroup(name="Citizen Field Reports", show=True)
                 for cr in citizen_reports_dual:
                     mcolor = get_severity_badge_color(cr["severity"])
                     photo_uri = get_photo_data_uri(cr["photo_filename"])
@@ -1790,7 +1842,7 @@ elif st.session_state.page == "dashboard":
                     folium.Marker(
                         location=[cr["latitude"], cr["longitude"]],
                         popup=folium.Popup(popup_html, max_width=280),
-                        tooltip=f"📸 Field Report: {cr['location_name']} ({cr['severity']})",
+                        tooltip=f"Field Report: {cr['location_name']} ({cr['severity']})",
                         icon=folium.Icon(color="red" if "critical" in cr["severity"].lower() else "orange", icon="camera", prefix="fa")
                     ).add_to(citizen_fg_dual)
                 citizen_fg_dual.add_to(m_dual)
@@ -1814,9 +1866,9 @@ elif st.session_state.page == "dashboard":
 
                     def dual_road_style_fn(props):
                         if props.get("blocked"):
-                            return {"color": "#EF4444", "weight": 4.5, "opacity": 0.95}
+                            return {"color": "#B91C1C", "weight": 4.5, "opacity": 0.95}
                         elif props.get("at_risk"):
-                            return {"color": "#F97316", "weight": 3.5, "opacity": 0.85}
+                            return {"color": "#B45309", "weight": 3.5, "opacity": 0.85}
                         else:
                             return {"color": "#64748B", "weight": 2.0, "opacity": 0.60}
 
@@ -1825,7 +1877,7 @@ elif st.session_state.page == "dashboard":
                     if ea is not None and len(ea) > 0:
                         ea = mark_blocked_edges(ea, ga, road_reports_dual)
                         clean_ea = sanitize_edges_for_folium(ea)
-                        rfg_a = folium.FeatureGroup(name=f"🛣️ Roads: Pin A ({loc_a['title']})", show=True)
+                        rfg_a = folium.FeatureGroup(name=f"Roads: Pin A ({loc_a['title']})", show=True)
                         folium.GeoJson(
                             clean_ea,
                             style_function=lambda f: dual_road_style_fn(f["properties"]),
@@ -1843,7 +1895,7 @@ elif st.session_state.page == "dashboard":
                     if eb is not None and len(eb) > 0:
                         eb = mark_blocked_edges(eb, gb, road_reports_dual)
                         clean_eb = sanitize_edges_for_folium(eb)
-                        rfg_b = folium.FeatureGroup(name=f"🛣️ Roads: Pin B ({loc_b['title']})", show=True)
+                        rfg_b = folium.FeatureGroup(name=f"Roads: Pin B ({loc_b['title']})", show=True)
                         folium.GeoJson(
                             clean_eb,
                             style_function=lambda f: dual_road_style_fn(f["properties"]),
@@ -1868,15 +1920,15 @@ elif st.session_state.page == "dashboard":
             lbl_road_risk = translate_text("At-Risk (2km)", target_lang)
             lbl_road_blk = translate_text("Blocked Road", target_lang)
             st.markdown(f"""
-            <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #94A3B8; margin-top: 0.35rem; padding: 0.4rem 0.85rem; background: rgba(128,128,128,0.06); border-radius: 6px; border: 1px solid rgba(128,128,128,0.15);">
-                <span style="color: #38BDF8;">● <b>Pin A:</b> {loc_a['title']}</span>
-                <span style="color: #FB7185;">● <b>Pin B:</b> {loc_b['title']}</span>
-                <span style="color: #F97316;">📸 <b>{lbl_field_inc}:</b> {len(citizen_reports_dual)}</span>
-                <span style="color: #E2E8F0;">↔ {lbl_geod_sep}: <b>{deltas['distance_km']} km</b></span>
-                <span style="color: #94A3B8;">&nbsp;|&nbsp; 🛣️ <b>Roads:</b></span>
-                <span style="color: #94A3B8;"><b style="color:#64748B;">━</b> {lbl_road_norm}</span>
-                <span style="color: #F97316;"><b>━</b> {lbl_road_risk}</span>
-                <span style="color: #EF4444;"><b>━</b> {lbl_road_blk}</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; font-size: 0.74rem; color: #475569; margin-top: 0.35rem; padding: 0.4rem 0.85rem; background: #FFFFFF; border-radius: 4px; border: 1px solid #E2E8F0;">
+                <span style="color: #1B4965; font-weight: 600;">● <b>Pin A:</b> {loc_a['title']}</span>
+                <span style="color: #B91C1C; font-weight: 600;">● <b>Pin B:</b> {loc_b['title']}</span>
+                <span style="color: #B45309; font-weight: 600;">● <b>{lbl_field_inc}:</b> {len(citizen_reports_dual)}</span>
+                <span style="color: #475569;">↔ {lbl_geod_sep}: <b>{deltas['distance_km']} km</b></span>
+                <span style="color: #64748B;">&nbsp;|&nbsp; <b>Roads:</b></span>
+                <span style="color: #64748B;"><b style="color:#64748B;">━</b> {lbl_road_norm}</span>
+                <span style="color: #B45309;"><b>━</b> {lbl_road_risk}</span>
+                <span style="color: #B91C1C;"><b>━</b> {lbl_road_blk}</span>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1902,7 +1954,7 @@ elif st.session_state.page == "dashboard":
             lbl_rain_stress = translate_text("72h Rainfall Stress:", target_lang)
             lbl_soil_moist = translate_text("Topsoil Moisture:", target_lang)
             st.markdown(f"""
-            <div style="font-size: 0.83rem; color: #CBD5E1; background: rgba(255,255,255,0.02); padding: 0.85rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+            <div style="font-size: 0.83rem; color: #334155; background: #FFFFFF; padding: 0.85rem 1rem; border-radius: 4px; border: 1px solid #E2E8F0;">
                 <b>{lbl_mcomp}</b><br>
                 • <b>{lbl_geo_base}</b> Pin A <code>{risk_a['ml_probability']}%</code> vs Pin B <code>{risk_b['ml_probability']}%</code><br>
                 • <b>{lbl_rain_stress}</b> Pin A <code>{trig_a.get('rain_past_72h', 0):.1f} mm</code> vs Pin B <code>{trig_b.get('rain_past_72h', 0):.1f} mm</code><br>
@@ -1928,6 +1980,9 @@ elif st.session_state.page == "dashboard":
             use_container_width=True
         )
 
+        # Population-Weighted Hotspot Prioritization ("Evacuate First")
+        render_population_prioritization_section(hotspot_preds_dual, target_lang=target_lang, key_prefix="dual_obs")
+
         # 7. Detailed Comparison Tabs
         st.markdown("---")
         dtab1, dtab2, dtab3, dtab4, dtab5 = st.tabs([
@@ -1935,7 +1990,7 @@ elif st.session_state.page == "dashboard":
             translate_text("Geomorphic & Terrain Matrix", target_lang),
             translate_text("Weather Triggers Breakdown", target_lang),
             translate_text("Emergency Contacts & SDMA", target_lang),
-            translate_text("🔔 Automated Email Alerts", target_lang)
+            translate_text("Automated Email Alerts", target_lang)
         ])
 
 
@@ -1951,7 +2006,7 @@ elif st.session_state.page == "dashboard":
                     labels={"contribution": "Weight (%)", "factor": "Factor"},
                     color="contribution", color_continuous_scale="Blues"
                 )
-                bar_fig_a.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family="Plus Jakarta Sans", color="#94A3B8"), xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(showgrid=False), height=250, showlegend=False, margin=dict(l=10, r=20, t=10, b=10))
+                bar_fig_a.update_layout(paper_bgcolor='#FFFFFF', plot_bgcolor='#FFFFFF', font=dict(family="Plus Jakarta Sans", color="#334155"), xaxis=dict(showgrid=True, gridcolor='#E2E8F0', tickfont=dict(color="#475569")), yaxis=dict(showgrid=False, tickfont=dict(color="#334155")), height=250, showlegend=False, margin=dict(l=10, r=20, t=10, b=10))
                 st.plotly_chart(bar_fig_a, use_container_width=True)
 
             with dr_col2:
@@ -1962,7 +2017,7 @@ elif st.session_state.page == "dashboard":
                     labels={"contribution": "Weight (%)", "factor": "Factor"},
                     color="contribution", color_continuous_scale="Reds"
                 )
-                bar_fig_b.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(family="Plus Jakarta Sans", color="#94A3B8"), xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.05)'), yaxis=dict(showgrid=False), height=250, showlegend=False, margin=dict(l=10, r=20, t=10, b=10))
+                bar_fig_b.update_layout(paper_bgcolor='#FFFFFF', plot_bgcolor='#FFFFFF', font=dict(family="Plus Jakarta Sans", color="#334155"), xaxis=dict(showgrid=True, gridcolor='#E2E8F0', tickfont=dict(color="#475569")), yaxis=dict(showgrid=False, tickfont=dict(color="#334155")), height=250, showlegend=False, margin=dict(l=10, r=20, t=10, b=10))
                 st.plotly_chart(bar_fig_b, use_container_width=True)
 
         with dtab2:
@@ -2101,7 +2156,7 @@ elif st.session_state.page == "dashboard":
             ecol_a, ecol_b = st.columns(2)
             with ecol_a:
                 st.markdown(f"""
-                <div style="font-size: 0.88rem; color: #CBD5E1; background: rgba(255,255,255,0.02); padding: 1.1rem; border-radius: 8px; border: 1px solid rgba(56,189,248,0.25);">
+                <div style="font-size: 0.88rem; color: #334155; background: #FFFFFF; padding: 1.1rem; border-radius: 4px; border: 1px solid #CBD5E1;">
                     <span class='pin-badge-a'>Pin A: {loc_a['state']} SDMA</span><br><br>
                     <b>{translate_text('Authorized Agency', target_lang)}:</b><br>{sdma_a['dept']}<br><br>
                     • {translate_text('State Toll-Free Emergency Helpline', target_lang)}: <code>{sdma_a['helpline']}</code><br>
@@ -2111,7 +2166,7 @@ elif st.session_state.page == "dashboard":
                 """, unsafe_allow_html=True)
             with ecol_b:
                 st.markdown(f"""
-                <div style="font-size: 0.88rem; color: #CBD5E1; background: rgba(255,255,255,0.02); padding: 1.1rem; border-radius: 8px; border: 1px solid rgba(251,113,133,0.25);">
+                <div style="font-size: 0.88rem; color: #334155; background: #FFFFFF; padding: 1.1rem; border-radius: 4px; border: 1px solid #CBD5E1;">
                     <span class='pin-badge-b'>Pin B: {loc_b['state']} SDMA</span><br><br>
                     <b>{translate_text('Authorized Agency', target_lang)}:</b><br>{sdma_b['dept']}<br><br>
                     • {translate_text('State Toll-Free Emergency Helpline', target_lang)}: <code>{sdma_b['helpline']}</code><br>

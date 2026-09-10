@@ -5,8 +5,10 @@ __pycache__/
 
 # Large Raw Datasets and Rasters (Over GitHub 100MB Limit)
 Sikkim/
+data/raw/
 *.csv
 *.tif
+!data/ner_population_2020.tif
 *.jp2
 *.zip
 

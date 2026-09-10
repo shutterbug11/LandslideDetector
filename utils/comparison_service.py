@@ -208,18 +208,18 @@ def create_comparative_soil_moisture_chart(
         barmode='group',
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(family="Plus Jakarta Sans, sans-serif", color="#94A3B8"),
+        font=dict(family="Plus Jakarta Sans, sans-serif", color="#334155"),
         xaxis=dict(
-            title=dict(text="Volumetric Moisture Content (m³/m³)", font=dict(color="#CBD5E1")),
+            title=dict(text="Volumetric Moisture Content (m³/m³)", font=dict(color="#0F172A")),
             range=[0, 0.58],
             showgrid=True,
-            gridcolor='rgba(255, 255, 255, 0.06)',
-            tickfont=dict(color="#94A3B8")
+            gridcolor='#E2E8F0',
+            tickfont=dict(color="#475569")
         ),
         yaxis=dict(
             autorange="reversed",
             showgrid=False,
-            tickfont=dict(color="#E2E8F0", size=12)
+            tickfont=dict(color="#0F172A", size=12)
         ),
         legend=dict(
             orientation="h",
@@ -227,7 +227,7 @@ def create_comparative_soil_moisture_chart(
             y=1.04,
             xanchor="center",
             x=0.5,
-            font=dict(color="#E2E8F0", size=12)
+            font=dict(color="#0F172A", size=12)
         ),
         height=320,
         margin=dict(l=20, r=20, t=25, b=20)
@@ -336,27 +336,27 @@ def create_comparative_forecast_chart(
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(family="Plus Jakarta Sans, sans-serif", color="#94A3B8"),
+        font=dict(family="Plus Jakarta Sans, sans-serif", color="#334155"),
         xaxis=dict(
-            title=dict(text="Forecast Date", font=dict(color="#CBD5E1")),
+            title=dict(text="Forecast Date", font=dict(color="#0F172A")),
             showgrid=True,
-            gridcolor='rgba(255, 255, 255, 0.05)',
-            tickfont=dict(color="#94A3B8")
+            gridcolor='#E2E8F0',
+            tickfont=dict(color="#475569")
         ),
         yaxis=dict(
-            title=dict(text="Precipitation (mm/day)", font=dict(color="#38BDF8")),
+            title=dict(text="Precipitation (mm/day)", font=dict(color="#1B4965")),
             side="left",
             showgrid=True,
-            gridcolor='rgba(255, 255, 255, 0.05)',
-            tickfont=dict(color="#38BDF8")
+            gridcolor='#E2E8F0',
+            tickfont=dict(color="#1B4965")
         ),
         yaxis2=dict(
-            title=dict(text="Probability (%)", font=dict(color="#F43F5E")),
+            title=dict(text="Probability (%)", font=dict(color="#B91C1C")),
             side="right",
             overlaying="y",
             range=[0, 100],
             showgrid=False,
-            tickfont=dict(color="#F43F5E")
+            tickfont=dict(color="#B91C1C")
         ),
         barmode='group',
         legend=dict(
@@ -365,7 +365,7 @@ def create_comparative_forecast_chart(
             y=1.04,
             xanchor="center",
             x=0.5,
-            font=dict(color="#CBD5E1", size=11)
+            font=dict(color="#0F172A", size=11)
         ),
         height=380,
         margin=dict(l=40, r=40, t=30, b=30),
@@ -391,20 +391,20 @@ def create_side_by_side_gauge(
         value=prob_val,
         domain={'x': [0, 1], 'y': [0, 1]},
         number={'suffix': "%", 'font': {'size': 38, 'family': 'Plus Jakarta Sans', 'color': color}},
-        title={'text': f"<b>{display_title}</b><br><span style='font-size:0.75em;color:#94A3B8'>{title_text}</span>", 'font': {'size': 16, 'color': '#E2E8F0'}},
+        title={'text': f"<b>{display_title}</b><br><span style='font-size:0.75em;color:#64748B'>{title_text}</span>", 'font': {'size': 16, 'color': '#0F172A'}},
         gauge={
-            'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#475569", 'tickfont': {'color': '#94A3B8', 'size': 10}},
+            'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#CBD5E1", 'tickfont': {'color': '#475569', 'size': 10}},
             'bar': {'color': color, 'thickness': 0.28},
             'bgcolor': "rgba(0,0,0,0)",
             'borderwidth': 1,
-            'bordercolor': "rgba(255,255,255,0.1)",
+            'bordercolor': "#E2E8F0",
             'steps': [
-                {'range': [0, 35], 'color': 'rgba(16, 185, 129, 0.12)'},
-                {'range': [35, 70], 'color': 'rgba(245, 158, 11, 0.12)'},
-                {'range': [70, 100], 'color': 'rgba(239, 68, 68, 0.15)'}
+                {'range': [0, 35], 'color': 'rgba(21, 128, 61, 0.10)'},
+                {'range': [35, 70], 'color': 'rgba(180, 83, 9, 0.10)'},
+                {'range': [70, 100], 'color': 'rgba(185, 28, 28, 0.12)'}
             ],
             'threshold': {
-                'line': {'color': "#EF4444", 'width': 3},
+                'line': {'color': "#B91C1C", 'width': 3},
                 'thickness': 0.85,
                 'value': 70.0
             }
