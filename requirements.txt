@@ -27,3 +27,8 @@ requests>=2.31.0
 
 # Document & PDF Generation
 reportlab>=4.1.0
+
+# Multilingual Translation (AI4Bharat IndicTrans2)
+torch>=2.1.0
+transformers>=4.38.0
+indictranstoolkit>=1.0.0

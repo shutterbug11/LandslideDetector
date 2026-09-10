@@ -59,6 +59,8 @@ try:
 except ImportError:
     HAS_GEOLOCATION = False
 
+from translate import translate_text, LANG_OPTIONS
+
 
 def render_folium_map(folium_map, height: int = 420):
     """
@@ -661,6 +663,15 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
+    # Multilingual Support (AI4Bharat IndicTrans2)
+    selected_lang_label = st.selectbox(
+        "🌐 Language / ভাষা",
+        options=list(LANG_OPTIONS.keys()),
+        index=0,
+        help="Translate risk alerts, emergency instructions, and weather telemetry summaries into regional Indic languages."
+    )
+    target_lang = LANG_OPTIONS[selected_lang_label]
+
     app_mode = st.radio(
         "Observation Mode",
         ["Single Location Observatory", "Compare Locations (Dual Mode)"],
@@ -778,13 +789,15 @@ if app_mode == "Single Location Observatory":
         """, unsafe_allow_html=True)
 
     with col_h2:
+        translated_risk_label = translate_text(f"{risk_a['classification']} Risk", target_lang).upper()
+        translated_alert_level = translate_text(risk_a['alert_level'], target_lang)
         st.markdown(f"""
         <div style="text-align: right; padding-top: 0.25rem;">
             <div class="status-pill {status_class}">
-                <span class="status-dot {dot_class}"></span> {risk_a['classification'].upper()} RISK
+                <span class="status-dot {dot_class}"></span> {translated_risk_label}
             </div>
             <div style="font-size: 0.78rem; color: #94A3B8; margin-top: 0.35rem; font-weight: 500;">
-                {risk_a['alert_level']}
+                {translated_alert_level}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -816,17 +829,28 @@ if app_mode == "Single Location Observatory":
         )
 
     # Alert Callout
+    # SAFETY / COMPLIANCE NOTE: Safety-critical disaster phrases (e.g., "evacuate immediately",
+    # "avoid hillside road cuts", "critical hazard alert") should be regularly spot-checked
+    # for translation accuracy across regional Indic dialects in the North Eastern Himalayan Region.
     if risk_a['classification'] == "High":
-        st.error(f"""
-        **Critical Hazard Alert Active for {loc_a['title']}:**  
-        Antecedent rainfall ({risk_a['thresholds']['rain_72h']:.1f} mm in 72h) and subsurface moisture saturation have breached safety thresholds on this {loc_a['slope']}° slope. 
-        Immediate Action: Avoid hillside road cuts, monitor retaining structures, and follow local district evacuation guidelines.
-        """)
+        alert_text = (
+            f"Critical Hazard Alert Active for {loc_a['title']}: "
+            f"Antecedent rainfall ({risk_a['thresholds']['rain_72h']:.1f} mm in 72h) and subsurface moisture saturation have breached safety thresholds on this {loc_a['slope']}° slope. "
+            f"Immediate Action: Evacuate immediately if directed by authorities. Avoid hillside road cuts, monitor retaining structures, and follow local district evacuation guidelines."
+        )
+        st.error(translate_text(alert_text, target_lang))
     elif risk_a['classification'] == "Medium":
-        st.warning(f"""
-        **Elevated Slope Stability Advisory for {loc_a['title']}:**  
-        Moderate saturation detected on {loc_a['slope']}° terrain. Persistent precipitation may initiate localized debris flows. Heightened vigilance recommended along transit corridors.
-        """)
+        alert_text = (
+            f"Elevated Slope Stability Advisory for {loc_a['title']}: "
+            f"Moderate saturation detected on {loc_a['slope']}° terrain. Persistent precipitation may initiate localized debris flows. Heightened vigilance recommended along transit corridors."
+        )
+        st.warning(translate_text(alert_text, target_lang))
+    else:
+        alert_text = (
+            f"Normal Baseline Stability for {loc_a['title']}: "
+            f"Low landslide susceptibility under prevailing weather conditions. Normal vigilance advised."
+        )
+        st.success(translate_text(alert_text, target_lang))
 
     # Automated Alert Dispatch for Registered Residents
     dispatch_results_a = check_and_dispatch_alerts(
@@ -839,7 +863,8 @@ if app_mode == "Single Location Observatory":
     if dispatch_results_a:
         sent_subs = [r for r in dispatch_results_a if r.get("status") == "success"]
         if sent_subs:
-            st.info(f"🚨 **Automated Early Warning Dispatched:** {len(sent_subs)} registered resident(s) in {loc_a['title']} received email alerts (Risk: {risk_a['probability']}%).")
+            dispatch_text = f"Automated Early Warning Dispatched: {len(sent_subs)} registered resident(s) in {loc_a['title']} received email alerts (Risk: {risk_a['probability']}%)."
+            st.info(f"🚨 **{translate_text(dispatch_text, target_lang)}**")
 
     # Top Metric Cards
 
@@ -888,6 +913,15 @@ if app_mode == "Single Location Observatory":
             <div class="metric-sub">Current Rain Rate: {curr_weather.get('precipitation_rate', 0.0):.1f} mm/h</div>
         </div>
         """, unsafe_allow_html=True)
+
+    # Translated Weather Telemetry Summary
+    weather_summary_str = (
+        f"Weather Telemetry Summary for {loc_a['title']}: Surface Temperature {curr_weather.get('temperature', 20.0):.1f} °C, "
+        f"Relative Humidity {humidity_val:.0f}%, 24h Rainfall {triggers.get('rain_past_24h', 0.0):.1f} mm, "
+        f"72h Cumulative Rainfall {triggers.get('rain_past_72h', 0.0):.1f} mm, "
+        f"Topsoil Moisture Saturation {triggers.get('soil_moisture_top', 0.25)*100:.1f}%."
+    )
+    st.caption(f"🌤️ **{translate_text('Weather Telemetry Summary', target_lang)}:** {translate_text(weather_summary_str, target_lang)}")
 
     # Map & Gauge Section
     col_map, col_gauge = st.columns([3, 2])
@@ -1129,26 +1163,31 @@ if app_mode == "Single Location Observatory":
         else:
             st.write("Soil moisture horizon data currently unavailable.")
     with tab3:
-        st.markdown("##### State Disaster Management Authority (SDMA) Emergency Contacts")
+        st.markdown(f"##### {translate_text('State Disaster Management Authority (SDMA) Emergency Contacts', target_lang)}")
         sdma = SDMA_CONTACTS.get(loc_a['state'], SDMA_CONTACTS["Sikkim"])
         ecol1, ecol2 = st.columns(2)
         with ecol1:
             st.markdown(f"""
             <div style="font-size: 0.88rem; color: #CBD5E1; background: rgba(255,255,255,0.02); padding: 1.1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
-                <b>Authorized State Agency:</b><br>{sdma['dept']}<br><br>
-                • State Toll-Free Emergency Helpline: <code>{sdma['helpline']}</code><br>
-                • Direct Control Room: <code>{sdma['phone']}</code><br>
-                • National Disaster Response Force (NDRF): <code>1078 / 112</code>
+                <b>{translate_text('Authorized State Agency', target_lang)}:</b><br>{sdma['dept']}<br><br>
+                • {translate_text('State Toll-Free Emergency Helpline', target_lang)}: <code>{sdma['helpline']}</code><br>
+                • {translate_text('Direct Control Room', target_lang)}: <code>{sdma['phone']}</code><br>
+                • {translate_text('National Disaster Response Force (NDRF)', target_lang)}: <code>1078 / 112</code>
             </div>
             """, unsafe_allow_html=True)
         with ecol2:
-            st.markdown("""
+            sop_title = translate_text("NDMA Standard Operating Procedure (SOP):", target_lang)
+            sop_1 = translate_text("Listen for unusual ground rumble, tensile slope fissures, or sudden stream muddiness.", target_lang)
+            sop_2 = translate_text("During High Advisory, relocate away from channel gullies to designated ridge spurs. Evacuate immediately if instructed.", target_lang)
+            sop_3 = translate_text("Never seek shelter in stream depressions; mudslides accelerate in natural drainage chutes.", target_lang)
+            sop_4 = translate_text("Restrict non-essential vehicular movement during sustained rainfall episodes.", target_lang)
+            st.markdown(f"""
             <div style="font-size: 0.88rem; color: #CBD5E1; background: rgba(255,255,255,0.02); padding: 1.1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
-                <b>NDMA Standard Operating Procedure (SOP):</b><br>
-                1. <b>Pre-Warning Signs:</b> Listen for unusual ground rumble, tensile slope fissures, or sudden stream muddiness.<br>
-                2. <b>Safe Refuge:</b> During High Advisory, relocate away from channel gullies to designated ridge spurs.<br>
-                3. <b>Valley Hazards:</b> Never seek shelter in stream depressions; mudslides accelerate in natural drainage chutes.<br>
-                4. <b>Highway Transit:</b> Restrict non-essential vehicular movement during sustained rainfall episodes.
+                <b>{sop_title}</b><br>
+                1. <b>{translate_text('Pre-Warning Signs', target_lang)}:</b> {sop_1}<br>
+                2. <b>{translate_text('Safe Refuge', target_lang)}:</b> {sop_2}<br>
+                3. <b>{translate_text('Valley Hazards', target_lang)}:</b> {sop_3}<br>
+                4. <b>{translate_text('Highway Transit', target_lang)}:</b> {sop_4}
             </div>
             """, unsafe_allow_html=True)
     with tab4:
@@ -1281,18 +1320,20 @@ else:
     with col_h_mid:
         class_a = risk_a['classification'].lower()
         class_b = risk_b['classification'].lower()
+        pill_a_label = translate_text(f"{risk_a['classification']} Risk", target_lang).upper()
+        pill_b_label = translate_text(f"{risk_b['classification']} Risk", target_lang).upper()
         st.markdown(f"""
         <div style="padding-top: 0.2rem;">
             <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.35rem;">
                 <span class="pin-badge-a">PIN A</span>
                 <span class="status-pill status-{class_a}" style="padding: 0.25rem 0.65rem; font-size: 0.72rem;">
-                    <span class="status-dot dot-{class_a}"></span> {risk_a['classification'].upper()} ({risk_a['probability']}%)
+                    <span class="status-dot dot-{class_a}"></span> {pill_a_label} ({risk_a['probability']}%)
                 </span>
             </div>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
                 <span class="pin-badge-b">PIN B</span>
                 <span class="status-pill status-{class_b}" style="padding: 0.25rem 0.65rem; font-size: 0.72rem;">
-                    <span class="status-dot dot-{class_b}"></span> {risk_b['classification'].upper()} ({risk_b['probability']}%)
+                    <span class="status-dot dot-{class_b}"></span> {pill_b_label} ({risk_b['probability']}%)
                 </span>
             </div>
         </div>
@@ -1322,24 +1363,31 @@ else:
             st.download_button(label="PDF: Pin B", data=pdf_bytes_b, file_name=f"Report_PinB_{safe_b}.pdf", mime="application/pdf", use_container_width=True)
 
     # 2. Executive Comparative Delta Alert Callout
+    # SAFETY / COMPLIANCE NOTE: Safety-critical disaster phrases should be regularly spot-checked
+    # for translation accuracy across regional Indic dialects.
     if deltas["higher_risk"] != "EQUAL":
-        st.info(f"""
-        **Comparative Hazard Assessment Summary:**  
-        **{deltas['higher_name']}** exhibits a **+{deltas['margin']}% higher landslide risk** compared to {deltas['lower_name']}.  
-        • **Primary Driver Differences:** Slope gradient delta is **{deltas['slope_delta']:+.1f}°**, 72h antecedent rainfall difference is **{deltas['rain72_delta']:+.1f} mm**, and topsoil volumetric saturation differs by **{deltas['soil_top_delta']:+.1f}%**.
-        """)
+        comp_summary = (
+            f"Comparative Hazard Assessment Summary: "
+            f"{deltas['higher_name']} exhibits a +{deltas['margin']}% higher landslide risk compared to {deltas['lower_name']}. "
+            f"Primary Driver Differences: Slope gradient delta is {deltas['slope_delta']:+.1f}°, "
+            f"72h antecedent rainfall difference is {deltas['rain72_delta']:+.1f} mm, "
+            f"and topsoil volumetric saturation differs by {deltas['soil_top_delta']:+.1f}%."
+        )
+        st.info(translate_text(comp_summary, target_lang))
     else:
-        st.info(f"""
-        **Comparative Hazard Assessment Summary:**  
-        Both **{loc_a['title']}** and **{loc_b['title']}** demonstrate equal aggregate landslide failure probabilities (**{risk_a['probability']}%**).
-        """)
+        comp_summary = (
+            f"Comparative Hazard Assessment Summary: "
+            f"Both {loc_a['title']} and {loc_b['title']} demonstrate equal aggregate landslide failure probabilities ({risk_a['probability']}%)."
+        )
+        st.info(translate_text(comp_summary, target_lang))
 
     # Automated Alert Dispatch for Registered Residents across both pinned corridors
     disp_a = check_and_dispatch_alerts(loc_a['title'], loc_a['state'], risk_a, weather_a, sdma_a)
     disp_b = check_and_dispatch_alerts(loc_b['title'], loc_b['state'], risk_b, weather_b, sdma_b)
     sent_total = sum(1 for r in (disp_a + disp_b) if r.get("status") == "success")
     if sent_total > 0:
-        st.info(f"🚨 **Automated Early Warning Dispatched:** {sent_total} registered resident(s) received advisory emails across pinned comparison sectors.")
+        dispatch_text = f"Automated Early Warning Dispatched: {sent_total} registered resident(s) received advisory emails across pinned comparison sectors."
+        st.info(f"🚨 **{translate_text(dispatch_text, target_lang)}**")
 
     # 3. Top 5 Side-by-Side Metric Comparison Cards
 
@@ -1441,6 +1489,15 @@ else:
             <div class="metric-sub">Mean: A {trig_a.get('soil_moisture_mean', 0.3)*100:.1f}% | B {trig_b.get('soil_moisture_mean', 0.3)*100:.1f}%</div>
         </div>
         """, unsafe_allow_html=True)
+
+    # Translated Comparative Weather Telemetry Summary
+    dual_weather_summary = (
+        f"Comparative Weather Telemetry: Pin A ({loc_a['title']}) 24h rainfall {trig_a.get('rain_past_24h', 0.0):.1f} mm, "
+        f"72h rainfall {r72_a:.1f} mm, topsoil moisture {st_a:.1f}%. "
+        f"Pin B ({loc_b['title']}) 24h rainfall {trig_b.get('rain_past_24h', 0.0):.1f} mm, "
+        f"72h rainfall {r72_b:.1f} mm, topsoil moisture {st_b:.1f}%."
+    )
+    st.caption(f"🌤️ **{translate_text('Comparative Weather Telemetry', target_lang)}:** {translate_text(dual_weather_summary, target_lang)}")
 
     # 4. Interactive Map & Side-by-Side Gauges
     st.markdown("---")
@@ -1826,7 +1883,7 @@ else:
         st.dataframe(pd.DataFrame(weather_table_data), use_container_width=True, hide_index=True)
 
     with dtab4:
-        st.markdown("##### State Disaster Management Authorities & Protocols")
+        st.markdown(f"##### {translate_text('State Disaster Management Authorities & Emergency Protocols', target_lang)}")
         sdma_a = SDMA_CONTACTS.get(loc_a['state'], SDMA_CONTACTS["Sikkim"])
         sdma_b = SDMA_CONTACTS.get(loc_b['state'], SDMA_CONTACTS["Sikkim"])
 
@@ -1835,20 +1892,20 @@ else:
             st.markdown(f"""
             <div style="font-size: 0.88rem; color: #CBD5E1; background: rgba(255,255,255,0.02); padding: 1.1rem; border-radius: 8px; border: 1px solid rgba(56,189,248,0.25);">
                 <span class='pin-badge-a'>Pin A: {loc_a['state']} SDMA</span><br><br>
-                <b>Authorized Agency:</b><br>{sdma_a['dept']}<br><br>
-                • State Toll-Free Emergency Helpline: <code>{sdma_a['helpline']}</code><br>
-                • Direct Control Room: <code>{sdma_a['phone']}</code><br>
-                • NDRF Emergency Dispatch: <code>1078 / 112</code>
+                <b>{translate_text('Authorized Agency', target_lang)}:</b><br>{sdma_a['dept']}<br><br>
+                • {translate_text('State Toll-Free Emergency Helpline', target_lang)}: <code>{sdma_a['helpline']}</code><br>
+                • {translate_text('Direct Control Room', target_lang)}: <code>{sdma_a['phone']}</code><br>
+                • {translate_text('National Disaster Response Force (NDRF)', target_lang)}: <code>1078 / 112</code>
             </div>
             """, unsafe_allow_html=True)
         with ecol_b:
             st.markdown(f"""
             <div style="font-size: 0.88rem; color: #CBD5E1; background: rgba(255,255,255,0.02); padding: 1.1rem; border-radius: 8px; border: 1px solid rgba(251,113,133,0.25);">
                 <span class='pin-badge-b'>Pin B: {loc_b['state']} SDMA</span><br><br>
-                <b>Authorized Agency:</b><br>{sdma_b['dept']}<br><br>
-                • State Toll-Free Emergency Helpline: <code>{sdma_b['helpline']}</code><br>
-                • Direct Control Room: <code>{sdma_b['phone']}</code><br>
-                • NDRF Emergency Dispatch: <code>1078 / 112</code>
+                <b>{translate_text('Authorized Agency', target_lang)}:</b><br>{sdma_b['dept']}<br><br>
+                • {translate_text('State Toll-Free Emergency Helpline', target_lang)}: <code>{sdma_b['helpline']}</code><br>
+                • {translate_text('Direct Control Room', target_lang)}: <code>{sdma_b['phone']}</code><br>
+                • {translate_text('National Disaster Response Force (NDRF)', target_lang)}: <code>1078 / 112</code>
             </div>
             """, unsafe_allow_html=True)
 
