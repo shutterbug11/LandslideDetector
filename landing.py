@@ -132,52 +132,6 @@ def render_landing():
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
-
-        /* Video Presentation Container */
-        .video-wrapper {
-            background: #FFFFFF;
-            border: 1px solid #E2E8F0;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin: 0 auto 3rem auto;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-        }
-
-        .video-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-bottom: 1px solid #F1F5F9;
-            padding-bottom: 0.75rem;
-            margin-bottom: 1rem;
-        }
-
-        .video-title {
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: #0F172A;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .video-title i {
-            color: #1B4965;
-        }
-
-        .video-caption {
-            font-size: 0.82rem;
-            color: #64748B;
-        }
-
-        div[data-testid="stVideo"] video {
-            border-radius: 6px;
-            border: 1px solid #E2E8F0;
-            width: 100% !important;
-            max-height: 480px;
-            background: #000000;
-        }
-
         /* Section Headers */
         .inst-section-head {
             text-align: center;
@@ -486,29 +440,7 @@ def render_landing():
     """, unsafe_allow_html=True)
 
     # -------------------------------------------------------------------------
-    # 4. Field Footage Video Section (Directly Below Hero/CTA & Stats)
-    # -------------------------------------------------------------------------
-    video_path = os.path.join("assets", "landslide_footage.mp4")
-    if os.path.exists(video_path):
-        st.markdown("""
-        <div class="video-wrapper">
-            <div class="video-header">
-                <div class="video-title">
-                    <i class="fa-solid fa-video"></i> Field Observation Footage: Active Slope Failure
-                </div>
-                <div class="video-caption">
-                    Recorded debris movement and road transit disruption in Himalayan mountain terrain
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        # Native Streamlit HTML5 video playback with controls, autoplay, loop, muted
-        st.video(video_path, format="video/mp4", loop=True, autoplay=True, muted=True)
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # -------------------------------------------------------------------------
-    # 5. Operational Workflow (3-Step Pipeline)
+    # 4. Operational Workflow (3-Step Pipeline)
     # -------------------------------------------------------------------------
     st.markdown("""
     <div class="inst-section-head">
@@ -549,7 +481,7 @@ def render_landing():
     """, unsafe_allow_html=True)
 
     # -------------------------------------------------------------------------
-    # 6. Core Modules (Truthful, Codebase-Verified Platform Capabilities)
+    # 5. Core Modules (Truthful, Codebase-Verified Platform Capabilities)
     # -------------------------------------------------------------------------
     st.markdown("""
     <div class="inst-section-head">
@@ -658,7 +590,7 @@ def render_landing():
     """, unsafe_allow_html=True)
 
     # -------------------------------------------------------------------------
-    # 7. Bottom Action Banner
+    # 6. Bottom Action Banner
     # -------------------------------------------------------------------------
     st.markdown("""
     <div class="bottom-callout">
@@ -676,7 +608,7 @@ def render_landing():
             st.rerun()
 
     # -------------------------------------------------------------------------
-    # 8. Institutional Footer
+    # 7. Institutional Footer
     # -------------------------------------------------------------------------
     st.markdown("""
     <div class="inst-footer">
