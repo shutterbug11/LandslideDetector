@@ -8,6 +8,16 @@ import os
 import streamlit as st
 
 
+def _render_html(html_str: str):
+    """
+    Renders pure HTML / CSS blocks safely into Streamlit without markdown
+    interference. Strips blank lines and leading/trailing indentation so CommonMark
+    never breaks the HTML block or interprets lines as raw code snippets.
+    """
+    clean = "\n".join([line.strip() for line in html_str.splitlines() if line.strip()])
+    st.markdown(clean, unsafe_allow_html=True)
+
+
 def render_landing():
     """
     Renders the institutional GroundCheck landing page in an authoritative,
@@ -16,7 +26,7 @@ def render_landing():
     # -------------------------------------------------------------------------
     # 1. Institutional CSS Design System (Light Theme, Modern Micro-Interactions)
     # -------------------------------------------------------------------------
-    st.markdown("""
+    css_block = """
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <style>
 /* Suppress default Streamlit header, menu, footer, and sidebar on landing */
@@ -440,7 +450,8 @@ div[data-testid="stButton"] button[kind="primary"]:hover {
     .feature-row { grid-template-columns: 1fr; }
 }
 </style>
-""", unsafe_allow_html=True)
+"""
+    _render_html(css_block)
 
     # -------------------------------------------------------------------------
     # 2. Hero Section
@@ -461,7 +472,7 @@ div[data-testid="stButton"] button[kind="primary"]:hover {
 '</div>'
 '</div>'
     )
-    st.markdown(hero_html, unsafe_allow_html=True)
+    _render_html(hero_html)
 
     # Hero Action Button
     btn_col1, btn_col2, btn_col3 = st.columns([1, 1.4, 1])
@@ -470,7 +481,7 @@ div[data-testid="stButton"] button[kind="primary"]:hover {
             st.session_state.page = "dashboard"
             st.rerun()
 
-    st.markdown("<div style='margin-bottom: 2rem;'></div>", unsafe_allow_html=True)
+    _render_html("<div style='margin-bottom: 2rem;'></div>")
 
     # -------------------------------------------------------------------------
     # 3. Verified System Statistics
@@ -495,7 +506,7 @@ div[data-testid="stButton"] button[kind="primary"]:hover {
 '</div>'
 '</div>'
     )
-    st.markdown(stats_html, unsafe_allow_html=True)
+    _render_html(stats_html)
 
     # -------------------------------------------------------------------------
     # 4. Operational Workflow (3-Step Pipeline)
@@ -530,13 +541,11 @@ div[data-testid="stButton"] button[kind="primary"]:hover {
 '</div>'
 '</div>'
     )
-    st.markdown(workflow_html, unsafe_allow_html=True)
+    _render_html(workflow_html)
 
     # -------------------------------------------------------------------------
     # 5. Core Operational Modules (Polished, Natural, Clean HTML Rendering)
     # -------------------------------------------------------------------------
-    # NOTE: Constructed without multi-space leading indentation to prevent markdown
-    # parsers from ever interpreting HTML blocks as raw code blocks (<pre><code>).
     modules_html = (
 '<div class="inst-section-head">'
 '<div class="inst-section-label">Core Capabilities</div>'
@@ -636,7 +645,7 @@ div[data-testid="stButton"] button[kind="primary"]:hover {
 '</div>'
 '</div>'
     )
-    st.markdown(modules_html, unsafe_allow_html=True)
+    _render_html(modules_html)
 
     # -------------------------------------------------------------------------
     # 6. Bottom Action Banner
@@ -649,7 +658,7 @@ div[data-testid="stButton"] button[kind="primary"]:hover {
 '</div>'
 '</div>'
     )
-    st.markdown(bottom_html, unsafe_allow_html=True)
+    _render_html(bottom_html)
 
     btn_b1, btn_b2, btn_b3 = st.columns([1, 1.4, 1])
     with btn_b2:
@@ -673,4 +682,4 @@ div[data-testid="stButton"] button[kind="primary"]:hover {
 '</div>'
 '</div>'
     )
-    st.markdown(footer_html, unsafe_allow_html=True)
+    _render_html(footer_html)
